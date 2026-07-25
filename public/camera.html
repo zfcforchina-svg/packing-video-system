@@ -8,65 +8,68 @@
 <title>打包录像</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-html,body{width:100%;height:100%;overflow:hidden;background:#000;color:#fff;
+html,body{width:100%;height:100%;background:#000;color:#fff;
   font-family:-apple-system,BlinkMacSystemFont,sans-serif;-webkit-tap-highlight-color:transparent}
-#app{height:100%;display:flex;flex-direction:column}
-#top{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#111;flex-shrink:0}
-#top .t{font-size:15px;font-weight:700}
-#top .s{font-size:11px;padding:3px 10px;border-radius:20px;background:#064e3b;color:#6ee7b7}
-#main{flex:1;position:relative;overflow:hidden;background:#000}
-#scanner{width:100%;height:100%}
-#scanner video{object-fit:cover}
-#overlay{position:absolute;inset:0;pointer-events:none;z-index:10}
-#box{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:88%;height:70px;
-  border:2px solid rgba(37,99,235,0.9);border-radius:6px;
-  box-shadow:0 0 0 9999px rgba(0,0,0,0.5)}
-#box .line{position:absolute;top:0;left:5%;width:90%;height:2px;background:#2563eb;
-  animation:scan 2s ease-in-out infinite}
-@keyframes scan{0%,100%{top:8%}50%{top:88%}}
-#hint{position:absolute;bottom:80px;left:0;right:0;text-align:center;font-size:14px}
-#found{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) translateY(-90px);
-  background:#059669;padding:10px 20px;border-radius:10px;font-size:16px;font-weight:700;display:none}
-#recording{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) translateY(-90px);
-  background:rgba(220,38,38,0.9);padding:10px 20px;border-radius:10px;font-size:16px;font-weight:700;display:none}
-#bot{display:flex;gap:8px;padding:10px 14px;background:#111;flex-shrink:0}
-.btn{flex:1;padding:14px;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer}
+#app{max-width:500px;margin:0 auto;height:100%;display:flex;flex-direction:column;padding:16px}
+h1{font-size:20px;text-align:center;padding:20px 0 8px}
+.sub{text-align:center;color:#94a3b8;font-size:13px;margin-bottom:20px}
+
+/* status card */
+.card{background:#111;border-radius:14px;padding:20px;margin-bottom:12px;text-align:center}
+.card .label{font-size:12px;color:#64748b;margin-bottom:6px}
+.card .value{font-size:26px;font-weight:700;word-break:break-all}
+.card .value.empty{color:#333}
+
+/* buttons */
+.btns{display:flex;flex-direction:column;gap:10px;margin-top:auto;padding-bottom:30px}
+.btn{width:100%;padding:16px;border:none;border-radius:12px;font-size:18px;font-weight:700;cursor:pointer}
 .btn:active{opacity:0.8}
-.btn-rec{background:#dc2626;color:#fff}
-.btn-stop{background:#1e293b;color:#fff}
-.btn-upload{background:#2563eb;color:#fff}
-.btn-switch{background:#333;color:#fff;flex:0 0 auto;padding:14px}
-.btn:disabled{opacity:0.3}
+.btn-scan{background:#2563eb;color:#fff}
+.btn-record{background:#dc2626;color:#fff}
+.btn-upload{background:#059669;color:#fff}
+.btn-next{background:#7c3aed;color:#fff}
+.btn:disabled{opacity:0.25}
 .hid{display:none!important}
-.msg{position:absolute;bottom:60px;left:20px;right:20px;text-align:center;font-size:13px;color:#94a3b8;z-index:20}
+
+/* hidden file inputs */
+#scanInput,#recordInput{display:none}
+
+/* status bar */
+#statusBar{text-align:center;font-size:13px;color:#64748b;padding:8px;min-height:24px}
+.connected{color:#4ade80}
+.disconnected{color:#f87171}
 </style>
 </head>
 <body>
 
 <div id="app">
-  <div id="top">
-    <span class="t">📦 打包录像</span>
-    <span class="s" id="status">就绪</span>
+  <h1>📦 打包录像</h1>
+  <div class="sub" id="statusBar">加载中...</div>
+
+  <!-- Tracking card -->
+  <div class="card">
+    <div class="label">快递单号</div>
+    <div class="value empty" id="trackingDisplay">扫描获取</div>
   </div>
 
-  <div id="main">
-    <div id="scanner"></div>
-    <div id="overlay">
-      <div id="box"><div class="line"></div></div>
-      <div id="hint">将快递单号条码对准框内</div>
-      <div id="found"></div>
-      <div id="recording">🔴 录制中 <span id="timer">00:00</span></div>
-    </div>
-    <div class="msg hid" id="msg"></div>
+  <!-- Recorded file card -->
+  <div class="card hid" id="fileCard">
+    <div class="label">已录视频</div>
+    <div class="value" id="fileDisplay"></div>
   </div>
 
-  <div id="bot">
-    <button class="btn btn-switch" id="btnSwitch" title="切换摄像头">🔄</button>
-    <button class="btn btn-rec" id="btnRec" disabled>⏺ 开始录制</button>
-    <button class="btn btn-stop hid" id="btnStop">⏹ 停止</button>
-    <button class="btn btn-upload hid" id="btnNext">✅ 下一单</button>
+  <div class="btns">
+    <button class="btn btn-scan" id="btnScan">📷 拍照扫码</button>
+    <button class="btn btn-record hid" id="btnRecord">⏺ 开始录像</button>
+    <button class="btn btn-upload hid" id="btnUpload">☁️ 上传到电脑</button>
+    <button class="btn btn-next hid" id="btnNext">✅ 下一单</button>
   </div>
 </div>
+
+<!-- Hidden -->
+<div id="scanHelper" style="display:none"></div>
+<input type="file" id="scanInput" accept="image/*" capture="environment">
+<input type="file" id="recordInput" accept="video/*" capture="environment">
 
 <script src="/socket.io/socket.io.js"></script>
 <script src="/js/vendor/html5-qrcode.min.js"></script>
