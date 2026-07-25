@@ -142,10 +142,11 @@ function startRec(){
     clearInterval(recInterval);clearInterval(motionDetect);
     isRecording=false;
     recBadge.style.display='none';stillBar.style.display='none';
+    btnStop.classList.add('hid');
+    btnUp.classList.remove('hid');
     videoBlob=new Blob(recChunks,{type:mime});
     statusEl.textContent='✅ 录像完成 ('+(videoBlob.size/1048576).toFixed(1)+'MB) 自动上传中...';
     statusEl.className='g';
-    showButtons();
     doUpload(); // auto-upload!
   };
   recorder.start(1000);
@@ -153,13 +154,18 @@ function startRec(){
   recInterval=setInterval(updateRecTimer,500);
   updateRecTimer();
 
-  // UI
-  recBadge.style.display='flex';stillBar.style.display='block';
-  btnRow.classList.add('hid');btnNext.classList.add('hid');
+  // UI: show recording badge + stop button
+  recBadge.style.display='flex';
+  stillBar.style.display='block';
+  btnRow.classList.remove('hid');
+  btnStop.classList.remove('hid');
+  btnUp.classList.add('hid');
+  btnNext.classList.add('hid');
   statusEl.textContent='🔴 自动录制中 — 静止10秒自动停止';
   statusEl.className='r';
+  stillCount.textContent='0';
 
-  // Motion detection loop
+  // Motion detection
   motionDetect=setInterval(checkMotion,1000);
 }
 
@@ -173,34 +179,33 @@ function checkMotion(){
   if(!isRecording||vid.readyState<2||!vid.videoWidth)return;
 
   const c=document.createElement('canvas');
-  c.width=160;c.height=120; // downsample for speed
+  c.width=160;c.height=120;
   const ctx=c.getContext('2d');
   ctx.drawImage(vid,0,0,c.width,c.height);
   const frame=ctx.getImageData(0,0,c.width,c.height);
 
   if(prevFrame){
-    let diff=0;
+    let diff=0,samples=0;
     const d1=prevFrame.data,d2=frame.data;
-    for(let i=0;i<d1.length;i+=16){ // sample every 16th pixel
+    for(let i=0;i<d1.length;i+=12){ // sample every 12th pixel
       diff+=Math.abs(d1[i]-d2[i])+Math.abs(d1[i+1]-d2[i+1])+Math.abs(d1[i+2]-d2[i+2]);
+      samples++;
     }
-    pixelDiff=diff/(c.width*c.height/16*3); // normalize
-    const THRESHOLD=8; // below this = "still"
+    pixelDiff=diff/(samples*3); // average per-channel difference
+    const THRESHOLD=5; // below 5 = effectively still
 
     if(pixelDiff<THRESHOLD){
       stillFrames++;
-      stillCount.textContent=stillFrames;
-      if(stillFrames>=10){
-        // 10 seconds of stillness → auto-stop
-        statusEl.textContent='画面静止10秒，自动停止录制...';
-        statusEl.className='g';
-        stopRec();
-      }
     }else{
-      stillFrames=0;
-      stillCount.textContent='0';
+      stillFrames=Math.max(0,stillFrames-1); // gradual decay
     }
     stillCount.textContent=stillFrames;
+
+    if(stillFrames>=8){ // 8 seconds still → stop (slightly faster)
+      statusEl.textContent='画面静止，自动停止...';
+      statusEl.className='g';
+      stopRec();
+    }
   }
   prevFrame=frame;
 }
