@@ -39,7 +39,7 @@ function init(){
   recordInput.onchange=handleRecord;
 }
 
-// ---- STEP 1: Take photo → decode barcode ----
+// ---- STEP 1: Take photo → decode barcode (with image preprocessing) ----
 async function handleScan(){
   const rawFile=scanInput.files[0];
   if(!rawFile)return;
@@ -48,47 +48,92 @@ async function handleScan(){
   btnScan.disabled=true;
   btnScan.textContent='🔍 识别中...';
   scanMsg.classList.remove('hid');
-  scanMsg.textContent='正在解码条码...';
+  scanMsg.style.color='#94a3b8';
 
   try{
-    // Convert to JPEG (iPhone shoots HEIC, which ZXing can't read)
-    // Also resize to max 2000px for faster decoding
+    // Load image
     const img=new Image();
     img.src=URL.createObjectURL(rawFile);
     await new Promise((r,rej)=>{img.onload=r;img.onerror=rej;});
-    const MAX=2000;
-    let w=img.width,h=img.height;
-    if(w>MAX||h>MAX){const s=MAX/Math.max(w,h);w=Math.round(w*s);h=Math.round(h*s);}
-    const canvas=document.createElement('canvas');
-    canvas.width=w;canvas.height=h;
-    canvas.getContext('2d').drawImage(img,0,0,w,h);
-    const jpegBlob=await new Promise(r=>canvas.toBlob(r,'image/jpeg',0.9));
-    const file=new File([jpegBlob],'barcode.jpg',{type:'image/jpeg'});
     URL.revokeObjectURL(img.src);
 
     let result=null;
 
-    // Method 1: Native BarcodeDetector — try ALL formats
-    if('BarcodeDetector' in window){
-      try{
-        const allFormats=['code_128','code_39','code_93','codabar','ean_13','ean_8',
-          'upc_a','upc_e','itf','pdf417','data_matrix','aztec','qr_code'];
-        const detector=new BarcodeDetector({formats:allFormats});
-        const codes=await detector.detect(img);
-        if(codes.length>0){result=codes[0].rawValue;}
-      }catch(e){/* fall through */}
-    }
+    // ---- Preprocess: generate multiple variants ----
+    const variants=[];
 
-    // Method 2: html5-qrcode scanFile (fallback)
-    if(!result){
+    // Variant 1: Resized to max 2000px (standard)
+    const c1=document.createElement('canvas');
+    const MAX=2000;let w=img.width,h=img.height;
+    if(w>MAX||h>MAX){const s=MAX/Math.max(w,h);w=Math.round(w*s);h=Math.round(h*s);}
+    c1.width=w;c1.height=h;
+    c1.getContext('2d').drawImage(img,0,0,w,h);
+    variants.push({canvas:c1,label:'standard'});
+
+    // Variant 2: Grayscale + contrast enhanced (helps thermal print barcodes)
+    const c2=document.createElement('canvas');
+    c2.width=w;c2.height=h;
+    const ctx2=c2.getContext('2d');
+    ctx2.drawImage(img,0,0,w,h);
+    const idata=ctx2.getImageData(0,0,w,h);
+    const d=idata.data;
+    for(let i=0;i<d.length;i+=4){
+      const gray=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2]; // luminosity
+      const enhanced=Math.min(255,Math.max(0,(gray-128)*1.8+128)); // increase contrast
+      d[i]=d[i+1]=d[i+2]=enhanced;
+    }
+    ctx2.putImageData(idata,0,0);
+    variants.push({canvas:c2,label:'enhanced'});
+
+    // Variant 3: Thresholded (pure black/white) — best for barcodes
+    const c3=document.createElement('canvas');
+    c3.width=w;c3.height=h;
+    const ctx3=c3.getContext('2d');
+    ctx3.drawImage(img,0,0,w,h);
+    const idata3=ctx3.getImageData(0,0,w,h);
+    const d3=idata3.data;
+    // Calculate threshold using Otsu-like method (simplified)
+    let sum=0;
+    for(let i=0;i<d3.length;i+=4)sum+=0.299*d3[i]+0.587*d3[i+1]+0.114*d3[i+2];
+    const threshold=sum/(d3.length/4);
+    for(let i=0;i<d3.length;i+=4){
+      const gray=0.299*d3[i]+0.587*d3[i+1]+0.114*d3[i+2];
+      const v=gray>threshold?255:0;
+      d3[i]=d3[i+1]=d3[i+2]=v;
+    }
+    ctx3.putImageData(idata3,0,0);
+    variants.push({canvas:c3,label:'threshold'});
+
+    // Try each variant with both detection methods
+    for(const variant of variants){
+      if(result)break;
+      scanMsg.textContent='正在解码... ('+variant.label+')';
+
+      // Method A: Native BarcodeDetector
+      if('BarcodeDetector' in window){
+        try{
+          const allFormats=['code_128','code_39','code_93','codabar','ean_13','ean_8',
+            'upc_a','upc_e','itf','pdf417','data_matrix','aztec','qr_code'];
+          const detector=new BarcodeDetector({formats:allFormats});
+          const codes=await detector.detect(variant.canvas);
+          if(codes.length>0){result=codes[0].rawValue;break;}
+        }catch(e){}
+      }
+
+      // Method B: html5-qrcode scanFile on blob from variant canvas
       try{
+        const blob=await new Promise(r=>variant.canvas.toBlob(r,'image/jpeg',0.95));
+        const file=new File([blob],'barcode.jpg',{type:'image/jpeg'});
         const scanner=new Html5Qrcode('scanImg');
         result=await scanner.scanFile(file,false);
-      }catch(e2){throw new Error('两种方式都未能识别条码');}
+        if(result)break;
+      }catch(e){}
     }
 
-    tracking=(result||'').replace(/[^a-zA-Z0-9]/g,'').trim();
-    if(!tracking||tracking.length<4)throw new Error('未识别到有效单号: '+(result||'空'));
+    if(!result)throw new Error('所有方法均未能识别条码');
+
+    tracking=result.replace(/[^a-zA-Z0-9]/g,'').trim();
+    if(!tracking||tracking.length<4)throw new Error('识别结果无效');
 
     trackingDisplay.textContent=tracking;
     trackingDisplay.classList.remove('placeholder');
@@ -101,25 +146,24 @@ async function handleScan(){
 
   }catch(err){
     console.error('Scan error:',err);
-    // Show the photo so user can manually read the number
+    // Show photo for manual entry
     scanImg.src=URL.createObjectURL(rawFile);
     scanImg.style.display='block';
     scanImg.style.maxWidth='100%';
     scanImg.style.borderRadius='8px';
     scanImg.style.marginTop='8px';
-    trackingDisplay.textContent='自动识别失败，请手动输入';
+    trackingDisplay.textContent='点击输入单号';
     trackingDisplay.classList.remove('placeholder');
     trackingDisplay.contentEditable='true';
-    trackingDisplay.style.outline='2px dashed #2563eb';
+    trackingDisplay.style.outline='2px dashed #fbbf24';
     trackingDisplay.style.borderRadius='4px';
-    trackingDisplay.style.padding='4px';
+    trackingDisplay.style.padding='8px';
     trackingDisplay.focus();
     btnScan.textContent='📸 重新拍照';
     btnScan.disabled=false;
     btnRecord.classList.remove('hid');
-    scanMsg.textContent='👆 自动识别失败，看照片手动输入单号后点录制';
+    scanMsg.textContent='👆 识别失败，看照片手动输入单号';
     scanMsg.style.color='#fbbf24';
-    // When user types, update tracking
     trackingDisplay.oninput=()=>{
       tracking=trackingDisplay.textContent.replace(/[^a-zA-Z0-9]/g,'').trim();
     };
