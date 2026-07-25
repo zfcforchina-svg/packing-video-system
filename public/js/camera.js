@@ -68,10 +68,12 @@ async function handleScan(){
 
     let result=null;
 
-    // Method 1: Native BarcodeDetector (fast, reliable)
+    // Method 1: Native BarcodeDetector — try ALL formats
     if('BarcodeDetector' in window){
       try{
-        const detector=new BarcodeDetector({formats:['code_128','code_39','ean_13','ean_8','qr_code']});
+        const allFormats=['code_128','code_39','code_93','codabar','ean_13','ean_8',
+          'upc_a','upc_e','itf','pdf417','data_matrix','aztec','qr_code'];
+        const detector=new BarcodeDetector({formats:allFormats});
         const codes=await detector.detect(img);
         if(codes.length>0){result=codes[0].rawValue;}
       }catch(e){/* fall through */}
@@ -99,11 +101,28 @@ async function handleScan(){
 
   }catch(err){
     console.error('Scan error:',err);
-    trackingDisplay.textContent='识别失败';
-    btnScan.textContent='📸 拍条码识别单号';
+    // Show the photo so user can manually read the number
+    scanImg.src=URL.createObjectURL(rawFile);
+    scanImg.style.display='block';
+    scanImg.style.maxWidth='100%';
+    scanImg.style.borderRadius='8px';
+    scanImg.style.marginTop='8px';
+    trackingDisplay.textContent='自动识别失败，请手动输入';
+    trackingDisplay.classList.remove('placeholder');
+    trackingDisplay.contentEditable='true';
+    trackingDisplay.style.outline='2px dashed #2563eb';
+    trackingDisplay.style.borderRadius='4px';
+    trackingDisplay.style.padding='4px';
+    trackingDisplay.focus();
+    btnScan.textContent='📸 重新拍照';
     btnScan.disabled=false;
-    scanMsg.textContent='❌ '+(err.message||'识别失败，请重试');
-    setTimeout(()=>scanMsg.classList.add('hid'),5000);
+    btnRecord.classList.remove('hid');
+    scanMsg.textContent='👆 自动识别失败，看照片手动输入单号后点录制';
+    scanMsg.style.color='#fbbf24';
+    // When user types, update tracking
+    trackingDisplay.oninput=()=>{
+      tracking=trackingDisplay.textContent.replace(/[^a-zA-Z0-9]/g,'').trim();
+    };
   }
 }
 
@@ -179,9 +198,14 @@ function showNext(){
 function resetAll(){
   tracking='';videoBlob=null;
   trackingDisplay.textContent='拍摄条码获取';trackingDisplay.classList.add('placeholder');
+  trackingDisplay.contentEditable='false';
+  trackingDisplay.style.outline='';trackingDisplay.style.borderRadius='';trackingDisplay.style.padding='';
+  trackingDisplay.oninput=null;
+  scanImg.src='';scanImg.style.display='none';
   fileCard.classList.add('hid');previewVideo.style.display='none';
   btnScan.textContent='📸 拍条码识别单号';btnScan.disabled=false;btnScan.classList.remove('hid');
   btnRecord.classList.add('hid');btnUpload.classList.add('hid');btnNext.classList.add('hid');
+  scanMsg.classList.add('hid');scanMsg.style.color='#fbbf24';
   status.textContent=connected?'🟢 准备就绪':'🔴 未连接';status.style.color=connected?'#4ade80':'#f87171';
 }
 
