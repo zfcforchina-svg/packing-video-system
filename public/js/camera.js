@@ -1,196 +1,159 @@
 /**
- * 使用手机原生相机 — 拍照扫码 + 录像，100% 可用
+ * 打包录像 — 原生相机拍照扫码 + 录像
+ * 拍照 → scanFile解码 → 录像 → 上传 → 下一单
  */
-(function () {
-  const $ = (s) => document.querySelector(s);
-  const statusBar = $('#statusBar');
-  const trackingDisplay = $('#trackingDisplay');
-  const fileCard = $('#fileCard');
-  const fileDisplay = $('#fileDisplay');
-  const btnScan = $('#btnScan');
-  const btnRecord = $('#btnRecord');
-  const btnUpload = $('#btnUpload');
-  const btnNext = $('#btnNext');
-  const scanInput = $('#scanInput');
-  const recordInput = $('#recordInput');
+(function(){
+const $=s=>document.querySelector(s);
 
-  let tracking = '';
-  let videoBlob = null;
-  let socket = null;
-  let connected = false;
+const status=$('#status');
+const trackingDisplay=$('#trackingDisplay');
+const fileCard=$('#fileCard');
+const fileDisplay=$('#fileDisplay');
+const previewVideo=$('#previewVideo');
+const scanMsg=$('#scanMsg');
+const btnScan=$('#btnScan');
+const btnRecord=$('#btnRecord');
+const btnUpload=$('#btnUpload');
+const btnNext=$('#btnNext');
+const scanInput=$('#scanInput');
+const recordInput=$('#recordInput');
+const scanImg=$('#scanImg');
 
-  // ---- INIT ----
-  function init() {
-    socket = io({ reconnection: true });
-    socket.on('connect', () => {
-      connected = true;
-      statusBar.textContent = '🟢 已连接电脑';
-      statusBar.className = 'sub connected';
-    });
-    socket.on('disconnect', () => {
-      connected = false;
-      statusBar.textContent = '🔴 未连接（视频会存手机）';
-      statusBar.className = 'sub disconnected';
-    });
+let tracking='';
+let videoBlob=null;
+let socket=null;
+let connected=false;
 
-    btnScan.onclick = () => scanInput.click();
-    btnRecord.onclick = () => recordInput.click();
-    btnUpload.onclick = doUpload;
-    btnNext.onclick = resetAll;
+// ---- Init ----
+function init(){
+  socket=io({reconnection:true});
+  socket.on('connect',()=>{connected=true;status.textContent='🟢 已连接电脑';status.style.color='#4ade80';});
+  socket.on('disconnect',()=>{connected=false;status.textContent='🔴 未连接（视频存手机）';status.style.color='#f87171';});
 
-    scanInput.onchange = handleScanFile;
-    recordInput.onchange = handleRecordFile;
+  btnScan.onclick=()=>scanInput.click();
+  btnRecord.onclick=()=>recordInput.click();
+  btnUpload.onclick=doUpload;
+  btnNext.onclick=resetAll;
+
+  scanInput.onchange=handleScan;
+  recordInput.onchange=handleRecord;
+}
+
+// ---- STEP 1: Take photo → decode barcode ----
+async function handleScan(){
+  const file=scanInput.files[0];
+  if(!file)return;
+  scanInput.value='';
+
+  btnScan.disabled=true;
+  btnScan.textContent='🔍 识别中...';
+  scanMsg.classList.remove('hid');
+  scanMsg.textContent='正在解码条码...';
+
+  try{
+    // Use html5-qrcode scanFile to decode
+    const scanner=new Html5Qrcode('scanImg');
+    const result=await scanner.scanFile(file,false);
+    tracking=(result||'').replace(/[^a-zA-Z0-9]/g,'').trim();
+
+    if(!tracking||tracking.length<4)throw new Error('未识别到有效单号: '+(result||'空'));
+
+    trackingDisplay.textContent=tracking;
+    trackingDisplay.classList.remove('placeholder');
+    btnScan.textContent='📸 重新扫码';
+    btnScan.disabled=false;
+    btnRecord.classList.remove('hid');
+    scanMsg.classList.add('hid');
+    status.textContent='✅ 单号: '+tracking;
+    status.style.color='#4ade80';
+
+  }catch(err){
+    console.error('Scan error:',err);
+    trackingDisplay.textContent='识别失败';
+    btnScan.textContent='📸 拍条码识别单号';
+    btnScan.disabled=false;
+    scanMsg.textContent='❌ 识别失败，请重新拍摄条码（对准、光线充足）';
+    setTimeout(()=>scanMsg.classList.add('hid'),4000);
+  }
+}
+
+// ---- STEP 2: Record video ----
+function handleRecord(){
+  const file=recordInput.files[0];
+  if(!file)return;
+  recordInput.value='';
+
+  videoBlob=file;
+  const mb=(file.size/1048576).toFixed(1);
+  fileDisplay.textContent=tracking+'.mp4 ('+mb+'MB)';
+  fileCard.classList.remove('hid');
+  previewVideo.src=URL.createObjectURL(file);
+  previewVideo.style.display='block';
+  btnRecord.classList.add('hid');
+  btnUpload.classList.remove('hid');
+  status.textContent='✅ 录像完成';
+}
+
+// ---- STEP 3: Upload ----
+async function doUpload(){
+  if(!videoBlob||!tracking)return;
+
+  if(!connected){
+    status.textContent='⚠️ 未连接，通过数据线拷贝视频到 usb-import/';
+    status.style.color='#fbbf24';
+    saveToPhone();
+    showNext();return;
   }
 
-  // ---- STEP 1: SCAN BARCODE (native camera photo → decode) ----
-  async function handleScanFile() {
-    const file = scanInput.files[0];
-    if (!file) return;
+  btnUpload.disabled=true;
+  btnUpload.textContent='上传中...';
 
-    btnScan.disabled = true;
-    btnScan.textContent = '🔍 识别中...';
-    statusBar.textContent = '正在识别条码...';
-
-    try {
-      // Use html5-qrcode to decode barcode from photo
-      const html5QrCode = new Html5Qrcode('scanHelper');
-      const result = await html5QrCode.scanFile(file, false);
-      tracking = result.trim().replace(/[^a-zA-Z0-9]/g, '');
-
-      if (!tracking || tracking.length < 4) {
-        throw new Error('未识别到有效单号: ' + result);
-      }
-
-      trackingDisplay.textContent = tracking;
-      trackingDisplay.classList.remove('empty');
-      btnScan.textContent = '📷 重新扫码';
-      btnScan.disabled = false;
-      btnRecord.classList.remove('hid');
-      statusBar.textContent = '✅ 单号: ' + tracking;
-
-    } catch (err) {
-      console.error('Scan error:', err);
-      trackingDisplay.textContent = '识别失败，请重试';
-      btnScan.textContent = '📷 拍照扫码';
-      btnScan.disabled = false;
-      statusBar.textContent = '⚠️ ' + (err.message || '识别失败');
+  const fid=tracking+'_'+Date.now();
+  const sz=videoBlob.size,cs=256*1024,total=Math.ceil(sz/cs);
+  try{
+    await ws('upload:start',{fileId:fid,trackingNumber:tracking,totalSize:sz,duration:0});
+    for(let i=0;i<total;i++){
+      const b=videoBlob.slice(i*cs,Math.min((i+1)*cs,sz));
+      await ws('upload:chunk',{fileId:fid,index:i,data:await b.arrayBuffer()});
+      btnUpload.textContent='上传 '+Math.round((i+1)/total*100)+'%';
     }
-
-    // Reset file input for next use
-    scanInput.value = '';
+    await ws('upload:complete',{fileId:fid});
+    btnUpload.textContent='☁️ 上传完成 ✅';
+    status.textContent='✅ 上传完成 — '+tracking;
+  }catch(e){
+    status.textContent='⚠️ 上传失败，已存手机 — '+e.message;
+    status.style.color='#fbbf24';
+    saveToPhone();
   }
+  showNext();
+}
 
-  // ---- STEP 2: RECORD VIDEO (native camera video) ----
-  function handleRecordFile() {
-    const file = recordInput.files[0];
-    if (!file) return;
+function ws(ev,d){return new Promise((resolve,reject)=>{
+  const t=setTimeout(()=>reject(new Error('超时')),120000);
+  socket.emit(ev,d,r=>{clearTimeout(t);r?.error?reject(new Error(r.error)):resolve(r||{});});
+});}
 
-    videoBlob = file;
-    const sizeMB = (file.size / 1048576).toFixed(1);
-    const duration = '未知';
+function saveToPhone(){
+  if(!videoBlob)return;
+  const url=URL.createObjectURL(videoBlob);
+  const a=document.createElement('a');a.href=url;a.download=tracking+'.mp4';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),10000);
+}
 
-    fileDisplay.textContent = `${tracking}.mp4 (${sizeMB}MB)`;
-    fileCard.classList.remove('hid');
-    btnRecord.classList.add('hid');
-    btnUpload.classList.remove('hid');
-    btnScan.textContent = '📷 重新扫码';
-    btnScan.disabled = false;
-    statusBar.textContent = '✅ 录像完成 — ' + tracking;
+function showNext(){
+  btnUpload.classList.add('hid');btnNext.classList.remove('hid');
+}
 
-    recordInput.value = '';
-  }
+// ---- Next ----
+function resetAll(){
+  tracking='';videoBlob=null;
+  trackingDisplay.textContent='拍摄条码获取';trackingDisplay.classList.add('placeholder');
+  fileCard.classList.add('hid');previewVideo.style.display='none';
+  btnScan.textContent='📸 拍条码识别单号';btnScan.disabled=false;btnScan.classList.remove('hid');
+  btnRecord.classList.add('hid');btnUpload.classList.add('hid');btnNext.classList.add('hid');
+  status.textContent=connected?'🟢 准备就绪':'🔴 未连接';status.style.color=connected?'#4ade80':'#f87171';
+}
 
-  // ---- STEP 3: UPLOAD ----
-  async function doUpload() {
-    if (!videoBlob || !tracking) return;
-    if (!connected) {
-      statusBar.textContent = '⚠️ 未连接，请通过数据线拷贝视频到 usb-import/';
-      saveToPhone();
-      showNext();
-      return;
-    }
-
-    btnUpload.disabled = true;
-    btnUpload.textContent = '上传中 0%...';
-
-    const fid = tracking + '_' + Date.now();
-    const sz = videoBlob.size;
-    const cs = 256 * 1024;
-    const total = Math.ceil(sz / cs);
-
-    try {
-      await ws('upload:start', {
-        fileId: fid,
-        trackingNumber: tracking,
-        totalSize: sz,
-        duration: 0,
-      });
-
-      for (let i = 0; i < total; i++) {
-        const start = i * cs;
-        const end = Math.min(start + cs, sz);
-        const chunk = videoBlob.slice(start, end);
-        const buf = await chunk.arrayBuffer();
-        await ws('upload:chunk', { fileId: fid, index: i, data: buf });
-        const pct = Math.round(((i + 1) / total) * 100);
-        btnUpload.textContent = `上传中 ${pct}%...`;
-      }
-
-      const result = await ws('upload:complete', { fileId: fid });
-      if (result?.success) {
-        statusBar.textContent = '✅ 上传完成 — ' + tracking;
-        btnUpload.textContent = '☁️ 上传完成';
-      }
-    } catch (err) {
-      statusBar.textContent = '⚠️ 上传失败，视频已存手机 — ' + err.message;
-      saveToPhone();
-    }
-
-    showNext();
-  }
-
-  function ws(ev, data) {
-    return new Promise((resolve, reject) => {
-      const t = setTimeout(() => reject(new Error('超时')), 120000);
-      socket.emit(ev, data, r => {
-        clearTimeout(t);
-        r?.error ? reject(new Error(r.error)) : resolve(r || {});
-      });
-    });
-  }
-
-  function saveToPhone() {
-    if (!videoBlob) return;
-    const url = URL.createObjectURL(videoBlob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = tracking + '.mp4';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 10000);
-  }
-
-  function showNext() {
-    btnUpload.classList.add('hid');
-    btnNext.classList.remove('hid');
-  }
-
-  // ---- NEXT PACKAGE ----
-  function resetAll() {
-    tracking = '';
-    videoBlob = null;
-    trackingDisplay.textContent = '扫描获取';
-    trackingDisplay.classList.add('empty');
-    fileCard.classList.add('hid');
-    btnScan.textContent = '📷 拍照扫码';
-    btnScan.disabled = false;
-    btnScan.classList.remove('hid');
-    btnRecord.classList.add('hid');
-    btnUpload.classList.add('hid');
-    btnNext.classList.add('hid');
-    statusBar.textContent = connected ? '🟢 准备就绪' : '🔴 未连接';
-  }
-
-  init();
+init();
 })();

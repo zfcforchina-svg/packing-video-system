@@ -8,68 +8,63 @@
 <title>打包录像</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-html,body{width:100%;height:100%;background:#000;color:#fff;
+html,body{height:100%;background:#111;color:#fff;
   font-family:-apple-system,BlinkMacSystemFont,sans-serif;-webkit-tap-highlight-color:transparent}
-#app{max-width:500px;margin:0 auto;height:100%;display:flex;flex-direction:column;padding:16px}
-h1{font-size:20px;text-align:center;padding:20px 0 8px}
-.sub{text-align:center;color:#94a3b8;font-size:13px;margin-bottom:20px}
+#app{max-width:500px;margin:0 auto;height:100%;display:flex;flex-direction:column;padding:16px;gap:12px}
+h2{text-align:center;padding-top:16px;font-size:20px}
+#status{text-align:center;font-size:12px;color:#94a3b8;min-height:20px}
 
-/* status card */
-.card{background:#111;border-radius:14px;padding:20px;margin-bottom:12px;text-align:center}
-.card .label{font-size:12px;color:#64748b;margin-bottom:6px}
-.card .value{font-size:26px;font-weight:700;word-break:break-all}
-.card .value.empty{color:#333}
+.card{background:#1a1a1a;border-radius:14px;padding:16px}
+.card .label{font-size:11px;color:#64748b;margin-bottom:4px}
+.card .val{font-size:22px;font-weight:700;word-break:break-all;min-height:32px}
+.card .val.placeholder{color:#333}
 
-/* buttons */
-.btns{display:flex;flex-direction:column;gap:10px;margin-top:auto;padding-bottom:30px}
-.btn{width:100%;padding:16px;border:none;border-radius:12px;font-size:18px;font-weight:700;cursor:pointer}
+.btn{width:100%;padding:16px;border:none;border-radius:12px;font-size:18px;font-weight:700;cursor:pointer;text-align:center}
 .btn:active{opacity:0.8}
-.btn-scan{background:#2563eb;color:#fff}
-.btn-record{background:#dc2626;color:#fff}
-.btn-upload{background:#059669;color:#fff}
-.btn-next{background:#7c3aed;color:#fff}
+.btn-primary{background:#2563eb;color:#fff}
+.btn-danger{background:#dc2626;color:#fff}
+.btn-success{background:#059669;color:#fff}
+.btn-purple{background:#7c3aed;color:#fff}
 .btn:disabled{opacity:0.25}
+
 .hid{display:none!important}
-
-/* hidden file inputs */
 #scanInput,#recordInput{display:none}
+#scanImg{display:none}
+#previewVideo{width:100%;max-height:300px;background:#000;border-radius:8px;display:none}
 
-/* status bar */
-#statusBar{text-align:center;font-size:13px;color:#64748b;padding:8px;min-height:24px}
-.connected{color:#4ade80}
-.disconnected{color:#f87171}
+.msg{text-align:center;font-size:13px;color:#fbbf24;min-height:20px}
 </style>
 </head>
 <body>
 
 <div id="app">
-  <h1>📦 打包录像</h1>
-  <div class="sub" id="statusBar">加载中...</div>
+  <h2>📦 打包录像</h2>
+  <div id="status">加载中...</div>
 
-  <!-- Tracking card -->
+  <!-- Step 1: Scan -->
   <div class="card">
-    <div class="label">快递单号</div>
-    <div class="value empty" id="trackingDisplay">扫描获取</div>
+    <div class="label">📷 快递单号</div>
+    <div class="val placeholder" id="trackingDisplay">拍摄条码获取</div>
   </div>
+  <button class="btn btn-primary" id="btnScan">📸 拍条码识别单号</button>
+  <div class="msg hid" id="scanMsg"></div>
 
-  <!-- Recorded file card -->
+  <!-- Step 2: Record -->
   <div class="card hid" id="fileCard">
-    <div class="label">已录视频</div>
-    <div class="value" id="fileDisplay"></div>
+    <div class="label">🎥 打包视频</div>
+    <div class="val" id="fileDisplay"></div>
   </div>
+  <video id="previewVideo" controls playsinline></video>
+  <button class="btn btn-danger hid" id="btnRecord">⏺ 录打包视频</button>
 
-  <div class="btns">
-    <button class="btn btn-scan" id="btnScan">📷 拍照扫码</button>
-    <button class="btn btn-record hid" id="btnRecord">⏺ 开始录像</button>
-    <button class="btn btn-upload hid" id="btnUpload">☁️ 上传到电脑</button>
-    <button class="btn btn-next hid" id="btnNext">✅ 下一单</button>
-  </div>
+  <!-- Step 3: Upload -->
+  <button class="btn btn-success hid" id="btnUpload">☁️ 上传到电脑</button>
+  <button class="btn btn-purple hid" id="btnNext">✅ 下一单</button>
 </div>
 
-<!-- Hidden -->
-<div id="scanHelper" style="display:none"></div>
 <input type="file" id="scanInput" accept="image/*" capture="environment">
 <input type="file" id="recordInput" accept="video/*" capture="environment">
+<img id="scanImg">
 
 <script src="/socket.io/socket.io.js"></script>
 <script src="/js/vendor/html5-qrcode.min.js"></script>
