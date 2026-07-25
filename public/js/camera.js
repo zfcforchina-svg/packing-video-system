@@ -76,16 +76,28 @@ async function startAutoScan(){
   scanRunning=true;
   connEl.textContent='🔍 将条码对准摄像头';
 
-  // Auto-scan loop: always keep running, even if frame not ready
+  // Auto-scan loop with visible counter for debugging
   let scanBusy=false;
+  let scanCount=0;
   async function scanLoop(){
-    if(!scanRunning)return;
-    scanTimer=setTimeout(scanLoop,400);
+    if(!scanRunning){connEl.textContent='⚠️ 扫描已停止';return;}
+    scanTimer=setTimeout(scanLoop,500);
+    scanCount++;
 
-    if(scanBusy)return;
-    if(!scanVideo||scanVideo.readyState<2||!scanVideo.videoWidth)return;
+    // Show counter every 2 scans
+    if(scanCount%2===0){
+      connEl.textContent='🔍 扫描中 #'+scanCount+' | 视频:'+
+        (scanVideo?scanVideo.readyState:'?')+' '+
+        (scanVideo?.videoWidth||0)+'x'+(scanVideo?.videoHeight||0);
+    }
+
+    if(scanBusy){connEl.textContent='🔍 等待上次结果...';return;}
+    if(!scanVideo){connEl.textContent='⚠️ 无视频元素';return;}
+    if(scanVideo.readyState<2){connEl.textContent='🔍 等待视频就绪('+scanVideo.readyState+')...';return;}
+    if(!scanVideo.videoWidth){connEl.textContent='⚠️ 视频尺寸为0';return;}
 
     scanBusy=true;
+    connEl.textContent='📤 发送第'+scanCount+'帧...';
     try{
       const c=document.createElement('canvas');
       c.width=scanVideo.videoWidth;
@@ -107,8 +119,12 @@ async function startAutoScan(){
           btnScan.disabled=false;
           connEl.textContent='✅ 单号: '+clean;
         }
+      }else{
+        connEl.textContent='❌ 第'+scanCount+'帧: '+(data.error||'无条码');
       }
-    }catch(e){/* keep scanning */}
+    }catch(e){
+      connEl.textContent='❌ 网络错误 #'+scanCount+': '+e.message;
+    }
     scanBusy=false;
   }
   scanLoop();

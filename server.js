@@ -108,6 +108,15 @@ db.init();
 const app = express();
 
 // --- Middleware ---
+// Disable caching for HTML/JS/CSS (prevent stale versions)
+app.use((req, res, next) => {
+  if (req.path.match(/\.(html|js|css|mjs)$/) || req.path === '/' || req.path === '/camera') {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+  }
+  next();
+});
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(express.static(path.join(__dirname, 'public')));
