@@ -2,149 +2,69 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#000">
 <title>打包录像</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{width:100%;height:100%;overflow:hidden;background:#000;color:#fff;
-  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-  -webkit-tap-highlight-color:transparent;touch-action:manipulation}
-
-/* === LAYOUT === */
-#app{display:flex;flex-direction:column;height:100%;height:100dvh;max-width:500px;margin:0 auto}
-
-/* === TOP BAR === */
-#topbar{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;
-  background:#111;border-bottom:1px solid #222;flex-shrink:0}
-#topbar .title{font-size:16px;font-weight:700}
-#topbar .status{font-size:11px;padding:3px 10px;border-radius:20px}
-.status-ok{background:#064e3b;color:#6ee7b7}
-.status-err{background:#450a0a;color:#fca5a5}
-.status-warn{background:#422006;color:#fde68a}
-
-/* === MAIN AREA === */
-#main{flex:1;position:relative;display:flex;flex-direction:column;overflow:hidden}
-
-/* === SCANNER VIEW === */
-#scanView{flex:1;display:flex;flex-direction:column;position:relative}
-#scannerContainer{flex:1;position:relative;overflow:hidden;background:#0a0a0a}
-#scannerContainer video{width:100%;height:100%;object-fit:cover}
-#scannerContainer canvas{display:none}
-
-/* scan overlay */
-#scanOverlay{position:absolute;inset:0;pointer-events:none;z-index:10}
-#scanBox{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-  width:85%;height:80px;border:2px solid rgba(37,99,235,0.8);border-radius:8px;
-  box-shadow:0 0 0 9999px rgba(0,0,0,0.45)}
-#scanLine{position:absolute;top:0;left:10%;width:80%;height:2px;
-  background:rgba(37,99,235,0.9);animation:scanAnim 2s ease-in-out infinite}
-@keyframes scanAnim{0%,100%{top:5%}50%{top:90%}}
-#scanHint{position:absolute;bottom:100px;left:0;right:0;text-align:center;font-size:14px;color:#fff;text-shadow:0 0 8px rgba(0,0,0,0.8)}
-#scanResult{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) translateY(-80px);
-  background:rgba(5,150,105,0.95);color:#fff;padding:12px 24px;border-radius:10px;
-  font-size:18px;font-weight:700;display:none;z-index:20;text-align:center}
-
-/* === RECORD VIEW === */
-#recordView{flex:1;display:none;flex-direction:column;position:relative}
-#recordVideo{width:100%;height:100%;object-fit:cover;background:#000}
-#recordInfo{position:absolute;top:16px;left:16px;right:16px;z-index:10;
-  display:flex;align-items:center;gap:10px}
-#recordBadge{background:rgba(220,38,38,0.9);color:#fff;padding:5px 12px;
-  border-radius:20px;font-size:13px;font-weight:600;display:none}
-#recordBadge .dot{display:inline-block;width:8px;height:8px;background:#fff;
-  border-radius:50%;margin-right:6px;animation:pulse 1s ease infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
-#recordTimer{color:#fff;font-size:14px;font-weight:700;font-variant-numeric:tabular-nums}
-#recordTracking{position:absolute;bottom:24px;left:16px;right:16px;z-index:10;
-  background:rgba(0,0,0,0.65);color:#fff;padding:10px 16px;border-radius:10px;
-  font-size:16px;font-weight:600;text-align:center}
-
-/* === UPLOAD OVERLAY === */
-#uploadOverlay{position:absolute;inset:0;background:rgba(0,0,0,0.85);z-index:50;
-  display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px}
-#uploadOverlay .progress-ring{width:100px;height:100px;border-radius:50%;
-  border:4px solid #333;border-top-color:#2563eb;animation:spin 1s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-#uploadPct{font-size:32px;font-weight:700}
-
-/* === BOTTOM BAR === */
-#bottombar{display:flex;gap:10px;padding:12px 16px;padding-bottom:max(12px,env(safe-area-inset-bottom));
-  background:#111;border-top:1px solid #222;flex-shrink:0}
-.btn{flex:1;padding:14px;border:none;border-radius:12px;font-size:16px;font-weight:700;
-  cursor:pointer;transition:all 0.15s;text-align:center}
-.btn:active{transform:scale(0.97)}
-.btn-blue{background:#2563eb;color:#fff}
-.btn-red{background:#dc2626;color:#fff}
-.btn-dark{background:#1e293b;color:#fff}
-.btn-green{background:#059669;color:#fff}
-.btn-outline{background:transparent;border:2px solid #333;color:#ccc}
-.btn:disabled{opacity:0.35;pointer-events:none}
-.btn-icon{font-size:20px}
-
-/* === ERROR OVERLAY === */
-#errorOverlay{position:absolute;inset:0;background:rgba(0,0,0,0.9);z-index:99;
-  display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:40px;text-align:center}
-#errorOverlay .err-icon{font-size:48px}
-#errorOverlay .err-title{font-size:20px;font-weight:700}
-#errorOverlay .err-detail{font-size:14px;color:#94a3b8;line-height:1.6}
+  font-family:-apple-system,BlinkMacSystemFont,sans-serif;-webkit-tap-highlight-color:transparent}
+#app{height:100%;display:flex;flex-direction:column}
+#top{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#111;flex-shrink:0}
+#top .t{font-size:15px;font-weight:700}
+#top .s{font-size:11px;padding:3px 10px;border-radius:20px;background:#064e3b;color:#6ee7b7}
+#main{flex:1;position:relative;overflow:hidden;background:#000}
+#scanner{width:100%;height:100%}
+#scanner video{object-fit:cover}
+#overlay{position:absolute;inset:0;pointer-events:none;z-index:10}
+#box{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:88%;height:70px;
+  border:2px solid rgba(37,99,235,0.9);border-radius:6px;
+  box-shadow:0 0 0 9999px rgba(0,0,0,0.5)}
+#box .line{position:absolute;top:0;left:5%;width:90%;height:2px;background:#2563eb;
+  animation:scan 2s ease-in-out infinite}
+@keyframes scan{0%,100%{top:8%}50%{top:88%}}
+#hint{position:absolute;bottom:80px;left:0;right:0;text-align:center;font-size:14px}
+#found{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) translateY(-90px);
+  background:#059669;padding:10px 20px;border-radius:10px;font-size:16px;font-weight:700;display:none}
+#recording{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) translateY(-90px);
+  background:rgba(220,38,38,0.9);padding:10px 20px;border-radius:10px;font-size:16px;font-weight:700;display:none}
+#bot{display:flex;gap:8px;padding:10px 14px;background:#111;flex-shrink:0}
+.btn{flex:1;padding:14px;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer}
+.btn:active{opacity:0.8}
+.btn-rec{background:#dc2626;color:#fff}
+.btn-stop{background:#1e293b;color:#fff}
+.btn-upload{background:#2563eb;color:#fff}
+.btn-switch{background:#333;color:#fff;flex:0 0 auto;padding:14px}
+.btn:disabled{opacity:0.3}
+.hid{display:none!important}
+.msg{position:absolute;bottom:60px;left:20px;right:20px;text-align:center;font-size:13px;color:#94a3b8;z-index:20}
 </style>
 </head>
 <body>
 
 <div id="app">
-  <!-- TOP -->
-  <div id="topbar">
-    <span class="title">📦 打包录像</span>
-    <span class="status status-warn" id="statusBadge">启动中...</span>
+  <div id="top">
+    <span class="t">📦 打包录像</span>
+    <span class="s" id="status">就绪</span>
   </div>
 
-  <!-- MAIN -->
   <div id="main">
-    <!-- SCAN -->
-    <div id="scanView">
-      <div id="scannerContainer"></div>
-      <div id="scanOverlay">
-        <div id="scanBox"><div id="scanLine"></div></div>
-        <div id="scanHint">将快递单号条码对准框内</div>
-      </div>
-      <div id="scanResult"></div>
+    <div id="scanner"></div>
+    <div id="overlay">
+      <div id="box"><div class="line"></div></div>
+      <div id="hint">将快递单号条码对准框内</div>
+      <div id="found"></div>
+      <div id="recording">🔴 录制中 <span id="timer">00:00</span></div>
     </div>
-
-    <!-- RECORD -->
-    <div id="recordView">
-      <video id="recordVideo" autoplay muted playsinline></video>
-      <div id="recordInfo">
-        <div id="recordBadge"><span class="dot"></span>录制中</div>
-        <div id="recordTimer">00:00</div>
-      </div>
-      <div id="recordTracking"></div>
-    </div>
-
-    <!-- UPLOAD -->
-    <div id="uploadOverlay">
-      <div class="progress-ring"></div>
-      <div id="uploadPct">0%</div>
-      <div style="color:#94a3b8;font-size:14px" id="uploadStatus">上传中...</div>
-    </div>
-
-    <!-- ERROR -->
-    <div id="errorOverlay">
-      <div class="err-icon">📷</div>
-      <div class="err-title" id="errTitle">摄像头启动失败</div>
-      <div class="err-detail" id="errDetail"></div>
-      <button class="btn btn-blue" onclick="location.reload()">重试</button>
-    </div>
+    <div class="msg hid" id="msg"></div>
   </div>
 
-  <!-- BOTTOM -->
-  <div id="bottombar">
-    <button class="btn btn-outline btn-icon" id="btnFlash" disabled>🔦</button>
-    <button class="btn btn-red" id="btnRecord" disabled>⏺ 开始录制</button>
-    <button class="btn btn-blue hidden" id="btnUpload">上传</button>
-    <button class="btn btn-green hidden" id="btnNext">✅ 下一单</button>
+  <div id="bot">
+    <button class="btn btn-switch" id="btnSwitch" title="切换摄像头">🔄</button>
+    <button class="btn btn-rec" id="btnRec" disabled>⏺ 开始录制</button>
+    <button class="btn btn-stop hid" id="btnStop">⏹ 停止</button>
+    <button class="btn btn-upload hid" id="btnNext">✅ 下一单</button>
   </div>
 </div>
 
