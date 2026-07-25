@@ -8,63 +8,69 @@
 <title>打包录像</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-html,body{height:100%;background:#111;color:#fff;
+html,body{height:100%;background:#0a0a0a;color:#fff;
   font-family:-apple-system,BlinkMacSystemFont,sans-serif;-webkit-tap-highlight-color:transparent}
-#app{max-width:500px;margin:0 auto;height:100%;display:flex;flex-direction:column;padding:16px;gap:12px}
-h2{text-align:center;padding-top:16px;font-size:20px}
-#status{text-align:center;font-size:12px;color:#94a3b8;min-height:20px}
+#app{max-width:500px;margin:0 auto;height:100%;display:flex;flex-direction:column;padding:12px;gap:10px}
+h2{text-align:center;padding:8px 0 0;font-size:20px}
+#conn{text-align:center;font-size:11px;min-height:18px}
+.conn-ok{color:#4ade80}.conn-err{color:#f87171}
 
-.card{background:#1a1a1a;border-radius:14px;padding:16px}
-.card .label{font-size:11px;color:#64748b;margin-bottom:4px}
-.card .val{font-size:22px;font-weight:700;word-break:break-all;min-height:32px}
-.card .val.placeholder{color:#333}
+/* Big tracking input */
+.input-group{background:#1a1a1a;border-radius:12px;padding:14px}
+.input-group label{font-size:12px;color:#64748b;display:block;margin-bottom:6px}
+#trackingInput{width:100%;padding:14px;font-size:22px;font-weight:700;text-align:center;
+  background:#0a0a0a;color:#fff;border:2px solid #333;border-radius:10px;
+  letter-spacing:2px;outline:none}
+#trackingInput:focus{border-color:#2563eb}
+#trackingInput::placeholder{color:#333;font-weight:400;font-size:16px}
 
-.btn{width:100%;padding:16px;border:none;border-radius:12px;font-size:18px;font-weight:700;cursor:pointer;text-align:center}
+/* Photo preview */
+#scanPreview{width:100%;max-height:180px;object-fit:contain;border-radius:10px;display:none;background:#000}
+
+/* Scan button row */
+.btn-row{display:flex;gap:8px}
+.btn{flex:1;padding:16px;border:none;border-radius:12px;font-size:17px;font-weight:700;cursor:pointer;text-align:center}
 .btn:active{opacity:0.8}
-.btn-primary{background:#2563eb;color:#fff}
-.btn-danger{background:#dc2626;color:#fff}
-.btn-success{background:#059669;color:#fff}
+.btn-blue{background:#2563eb;color:#fff}
+.btn-red{background:#dc2626;color:#fff}
+.btn-green{background:#059669;color:#fff}
 .btn-purple{background:#7c3aed;color:#fff}
+.btn-gray{background:#333;color:#aaa}
 .btn:disabled{opacity:0.25}
-
 .hid{display:none!important}
-#scanInput,#recordInput{display:none}
-#scanImg{display:none}
-#previewVideo{width:100%;max-height:300px;background:#000;border-radius:8px;display:none}
 
-.msg{text-align:center;font-size:13px;color:#fbbf24;min-height:20px}
+#scanInput,#recordInput{display:none}
+#scanHelper{display:none}
 </style>
 </head>
 <body>
 
 <div id="app">
   <h2>📦 打包录像</h2>
-  <div id="status">加载中...</div>
+  <div id="conn" class="conn-err">加载中...</div>
 
-  <!-- Step 1: Scan -->
-  <div class="card">
-    <div class="label">📷 快递单号</div>
-    <div class="val placeholder" id="trackingDisplay">拍摄条码获取</div>
+  <!-- Tracking input -->
+  <div class="input-group">
+    <label>快递单号（拍照自动填 或 手动输入）</label>
+    <input type="text" id="trackingInput" placeholder="扫描或输入快递单号" inputmode="numeric" autocomplete="off">
   </div>
-  <button class="btn btn-primary" id="btnScan">📸 拍条码识别单号</button>
-  <div class="msg hid" id="scanMsg"></div>
 
-  <!-- Step 2: Record -->
-  <div class="card hid" id="fileCard">
-    <div class="label">🎥 打包视频</div>
-    <div class="val" id="fileDisplay"></div>
+  <!-- Photo preview -->
+  <img id="scanPreview">
+
+  <!-- Buttons -->
+  <div class="btn-row">
+    <button class="btn btn-blue" id="btnScan">📸 拍照填单号</button>
   </div>
-  <video id="previewVideo" controls playsinline></video>
-  <button class="btn btn-danger hid" id="btnRecord">⏺ 录打包视频</button>
-
-  <!-- Step 3: Upload -->
-  <button class="btn btn-success hid" id="btnUpload">☁️ 上传到电脑</button>
+  <button class="btn btn-red hid" id="btnRecord">⏺ 开始录像</button>
+  <button class="btn btn-green hid" id="btnUpload">☁️ 上传到电脑</button>
   <button class="btn btn-purple hid" id="btnNext">✅ 下一单</button>
+  <div style="flex:1"></div>
 </div>
 
 <input type="file" id="scanInput" accept="image/*" capture="environment">
 <input type="file" id="recordInput" accept="video/*" capture="environment">
-<img id="scanImg">
+<div id="scanHelper"></div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script src="/js/vendor/html5-qrcode.min.js"></script>

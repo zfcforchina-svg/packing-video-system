@@ -106,5 +106,41 @@ module.exports = function (db, config, saveConfig) {
     res.json(files);
   });
 
+  // --- Barcode decode (server-side ZBar) ---
+  const multer = require('multer');
+  const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+  router.post('/decode', upload.single('image'), async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: '未收到图片' });
+
+    try {
+      // Dynamic import zbar-wasm (ESM module)
+      const zbar = await import('@undecaf/zbar-wasm');
+      const sharp = (await import('sharp')).default;
+
+      // Convert to grayscale raw buffer
+      const { data, info } = await sharp(req.file.buffer)
+        .greyscale()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+
+      const symbols = await zbar.scanGrayBuffer(data, info.width, info.height);
+
+      if (symbols && symbols.length > 0) {
+        const results = symbols.map(s => ({
+          text: s.decode(),
+          type: s.type === 128 ? 'Code128' : s.type === 39 ? 'Code39' : String(s.type),
+        }));
+        console.log('[Decode] Found:', results.map(r => r.text).join(', '));
+        res.json({ success: true, tracking: results[0].text, all: results });
+      } else {
+        res.json({ success: false, error: '未识别到条码，请重拍（对准条码、光线充足）' });
+      }
+    } catch (err) {
+      console.error('[Decode] Error:', err.message);
+      res.json({ success: false, error: '解码失败: ' + err.message });
+    }
+  });
+
   return router;
 };

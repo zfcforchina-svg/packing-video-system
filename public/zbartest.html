@@ -1,0 +1,95 @@
+<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>ZBar条码测试</title>
+<style>body{font-family:monospace;padding:16px;background:#111;color:#fff;line-height:2}
+.g{color:#4ade80}.r{color:#f87171}.y{color:#fbbf24}</style></head><body>
+<h2>ZBar 条码解码测试</h2>
+<div id="log"></div>
+<input type="file" id="cam" capture="environment" accept="image/*" style="display:none">
+<button onclick="document.getElementById('cam').click()" style="padding:16px;font-size:18px;background:#2563eb;color:#fff;border:none;border-radius:10px;margin:10px 0">📸 拍快递面单测试</button>
+<img id="img" style="display:none">
+
+<script type="module">
+import { scanImageData } from '/js/vendor/zbar-wasm.mjs';
+
+const logEl=document.getElementById('log');
+const img=document.getElementById('img');
+const cam=document.getElementById('cam');
+
+function log(s,c=''){logEl.innerHTML+=`<span class="${c}">${s}</span><br>`;}
+
+async function decodeWithZBar(imageData,label){
+  try{
+    const symbols=await scanImageData(imageData);
+    if(symbols&&symbols.length>0){
+      for(const s of symbols){
+        log(`✅ ZBar ${label}: "${s.decode()}" type=${s.typeName()} quality=${s.quality}`,'g');
+      }
+      return symbols[0].decode();
+    }
+    log(`ZBar ${label}: 未检测到条码`,'y');
+  }catch(e){
+    log(`ZBar ${label}: ${e.message}`,'r');
+  }
+  return null;
+}
+
+async function testFile(file,label){
+  log(`--- ${label} ---`);
+  log(`类型:${file.type} 大小:${(file.size/1024).toFixed(1)}KB`);
+
+  img.src=URL.createObjectURL(file);
+  await new Promise(r=>img.onload=r);
+
+  const c=document.createElement('canvas');
+  c.width=img.width;c.height=img.height;
+  const ctx=c.getContext('2d');
+  ctx.drawImage(img,0,0);
+  const idata=ctx.getImageData(0,0,c.width,c.height);
+
+  const r1=await decodeWithZBar(idata,'原始');
+  if(r1)return r1;
+
+  // Also try grayscale enhanced
+  const d=idata.data;
+  for(let i=0;i<d.length;i+=4){
+    const g=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2];
+    const e=Math.min(255,Math.max(0,(g-128)*1.8+128));
+    d[i]=d[i+1]=d[i+2]=e;
+  }
+  ctx.putImageData(idata,0,0);
+  const r2=await decodeWithZBar(ctx.getImageData(0,0,c.width,c.height),'增强');
+  if(r2)return r2;
+
+  URL.revokeObjectURL(img.src);
+  return null;
+}
+
+// Test generated barcodes
+(async()=>{
+  logEl.innerHTML='';
+  let passed=false;
+  for(const [url,name] of [['/test-barcode.png','Code128生成'],['/test-code39.png','Code39生成']]){
+    try{
+      const resp=await fetch(url);
+      const blob=await resp.blob();
+      const file=new File([blob],'test.png',{type:'image/png'});
+      const r=await testFile(file,name);
+      if(r)passed=true;
+    }catch(e){log(`加载失败: ${e.message}`,'r');}
+  }
+  log('=== 生成条码测试完成 ===');
+  log('点击上方按钮用真实相机拍摄快递面单');
+  document.title=passed?'✅ ZBar PASSED':'❌ ZBar FAILED';
+})();
+
+// Camera capture
+cam.onchange=async()=>{
+  const file=cam.files[0];
+  if(!file)return;
+  const r=await testFile(file,'真实拍摄');
+  if(r)log(`🎉 单号: ${r.replace(/[^a-zA-Z0-9]/g,'')}`,'g');
+  else log('❌ 所有方法均失败','r');
+  cam.value='';
+};
+</script>
+</body></html>

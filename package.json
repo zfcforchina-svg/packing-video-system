@@ -4,8 +4,8 @@
   "description": "电商打包录像系统 — 手机扫码录制、WiFi/USB双模式传输、电脑端检索回放",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js"
+    "start": "node --experimental-wasm-modules server.js",
+    "dev": "node --experimental-wasm-modules --watch server.js"
   },
   "keywords": [
     "packing",
@@ -16,11 +16,13 @@
   ],
   "license": "MIT",
   "dependencies": {
+    "@undecaf/zbar-wasm": "^0.11.0",
     "better-sqlite3": "^11.0.0",
     "chokidar": "^4.0.0",
     "express": "^4.21.0",
     "html5-qrcode": "^2.3.8",
     "multer": "^1.4.5-lts.1",
+    "sharp": "^0.35.3",
     "socket.io": "^4.7.0",
     "uuid": "^10.0.0"
   }
