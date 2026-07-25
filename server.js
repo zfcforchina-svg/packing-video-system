@@ -11,6 +11,7 @@ const apiRoutes = require('./routes/api');
 const uploadRoutes = require('./routes/upload');
 const { startWatcher } = require('./services/watcher');
 const { startCleanup } = require('./services/cleanup');
+const oss = require('./services/oss');
 
 // --- Config ---
 const configPath = path.join(__dirname, 'config.json');
@@ -104,6 +105,7 @@ BQADggEPADCCAQoCggEBAK0IhQJxLjA3NKCQQIaiBLD7fSYaFJqQIFQxMEi5M4ax
 // --- Init ---
 const config = loadConfig();
 db.init();
+oss.init(config);
 
 const app = express();
 
@@ -198,6 +200,11 @@ io.on('connection', (socket) => {
         uploadMethod: 'wifi',
       });
 
+      // Sync to OSS in background
+      const ossRelPath = relPath;
+      oss.upload(require('path').join(__dirname, 'uploads', ossRelPath), ossRelPath).then(url => {
+        if (url) console.log('[OSS] Synced:', m.trackingNumber);
+      }).catch(()=>{});
       if (ack) ack({ success: true, id: result.lastInsertRowid });
       io.emit('new-video', {
         id: result.lastInsertRowid,

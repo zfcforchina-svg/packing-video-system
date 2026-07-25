@@ -5,5 +5,13 @@
   "retentionDays": 90,
   "enableWatermark": false,
   "watermarkFontSize": 28,
-  "maxFileSizeMB": 500
+  "maxFileSizeMB": 500,
+  "oss": {
+    "enabled": false,
+    "region": "oss-cn-hangzhou",
+    "bucket": "your-bucket-name",
+    "accessKeyId": "",
+    "accessKeySecret": "",
+    "endpoint": ""
+  }
 }
