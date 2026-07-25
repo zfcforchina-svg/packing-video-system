@@ -1,0 +1,8 @@
+node_modules/
+uploads/
+usb-import/
+*.mp4
+*.webm
+*.mov
+data.db
+data.db-*

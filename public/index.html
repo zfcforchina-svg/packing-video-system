@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>打包录像管理系统</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="dashboard-page">
+
+<div class="dashboard">
+
+  <!-- HEADER -->
+  <header class="dash-header">
+    <div class="dash-title">
+      <h1>打包录像管理</h1>
+      <span class="dash-subtitle" id="connectionBadge">🟢 服务运行中</span>
+    </div>
+    <div class="dash-actions">
+      <button class="btn btn-sm" id="settingsToggle">设置</button>
+    </div>
+  </header>
+
+  <!-- SEARCH BAR -->
+  <div class="search-bar">
+    <input type="text" id="searchInput" class="search-input"
+           placeholder="搜索快递单号...">
+    <input type="date" id="dateFrom" class="date-input" title="开始日期">
+    <input type="date" id="dateTo" class="date-input" title="结束日期">
+    <button id="searchBtn" class="btn btn-primary btn-sm">搜索</button>
+    <button id="clearSearchBtn" class="btn btn-outline btn-sm">清除</button>
+    <span class="search-result" id="searchResult"></span>
+  </div>
+
+  <!-- STATS BAR -->
+  <div class="stats-bar" id="statsBar">
+    <div class="stat-item">
+      <span class="stat-value" id="statTotal">--</span>
+      <span class="stat-label">总视频数</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-value" id="statSize">--</span>
+      <span class="stat-label">总存储</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-value" id="statToday">--</span>
+      <span class="stat-label">今日新增</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-value" id="statFree">--</span>
+      <span class="stat-label">磁盘剩余</span>
+    </div>
+  </div>
+
+  <!-- VIDEO LIST -->
+  <div class="video-list" id="videoList">
+    <div class="empty-state" id="emptyState">
+      <div class="empty-icon">📹</div>
+      <p>暂无录像</p>
+      <p class="empty-hint">用手机打开 <code>/camera</code> 页面开始录制</p>
+    </div>
+  </div>
+
+  <!-- PAGINATION -->
+  <div class="pagination hidden" id="pagination">
+    <button id="prevPageBtn" class="btn btn-outline btn-sm">上一页</button>
+    <span id="pageInfo">第 1 页</span>
+    <button id="nextPageBtn" class="btn btn-outline btn-sm">下一页</button>
+  </div>
+
+  <!-- VIDEO PLAYER MODAL -->
+  <div class="modal-overlay hidden" id="playerModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="playerTitle">视频播放</h3>
+        <button class="modal-close" id="closePlayer">✕</button>
+      </div>
+      <video id="playerVideo" class="player-video" controls playsinline></video>
+      <div class="modal-info" id="playerInfo"></div>
+      <div class="modal-actions">
+        <button class="btn btn-outline btn-sm" id="copyTrackingBtn">复制单号</button>
+        <button class="btn btn-danger btn-sm" id="deleteVideoBtn">删除视频</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS PANEL -->
+  <div class="modal-overlay hidden" id="settingsModal">
+    <div class="modal-content modal-sm">
+      <div class="modal-header">
+        <h3>系统设置</h3>
+        <button class="modal-close" id="closeSettings">✕</button>
+      </div>
+      <div class="settings-form">
+        <label class="setting-row">
+          <span>视频保留天数</span>
+          <input type="number" id="settingRetention" class="setting-input" min="7" max="365">
+        </label>
+        <label class="setting-row">
+          <span>上传文件大小上限 (MB)</span>
+          <input type="number" id="settingMaxSize" class="setting-input" min="10" max="2000">
+        </label>
+        <label class="setting-row">
+          <span>启用水印 (FFmpeg)</span>
+          <input type="checkbox" id="settingWatermark">
+        </label>
+        <button id="saveSettingsBtn" class="btn btn-primary">保存设置</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST -->
+  <div class="toast hidden" id="toast"></div>
+
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/dashboard.js"></script>
+
+</body>
+</html>

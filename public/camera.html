@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0f172a">
+<title>打包录像</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="camera-page">
+
+<div class="camera-container">
+
+  <!-- HEADER -->
+  <div class="cam-header">
+    <div class="cam-logo">打包录像</div>
+    <div class="cam-status" id="connectionStatus">⚫ 未连接</div>
+  </div>
+
+  <!-- STEP 1: SCAN BARCODE -->
+  <div class="cam-step" id="step-scan">
+    <div class="step-badge">步骤 1</div>
+    <h2 class="step-title">扫描快递单号</h2>
+
+    <!-- Scanner viewfinder -->
+    <div class="scanner-box" id="scannerBox">
+      <div id="scannerViewfinder" class="scanner-viewfinder"></div>
+      <div class="scanner-crosshair"></div>
+      <div class="scanner-hint" id="scanHint">将条码对准扫描框</div>
+    </div>
+
+    <!-- Manual input fallback -->
+    <div class="manual-input">
+      <input type="text" id="trackingInput" class="tracking-input"
+             placeholder="或手动输入快递单号" autocomplete="off">
+      <button id="confirmTrackingBtn" class="btn btn-primary" disabled>
+        确认单号
+      </button>
+    </div>
+  </div>
+
+  <!-- STEP 2: RECORD -->
+  <div class="cam-step hidden" id="step-record">
+    <div class="step-badge">步骤 2</div>
+    <h2 class="step-title">录制打包视频</h2>
+
+    <!-- Camera preview -->
+    <div class="camera-preview-box" id="cameraPreviewBox">
+      <video id="cameraPreview" class="camera-preview" autoplay muted playsinline></video>
+      <canvas id="watermarkCanvas" class="watermark-canvas"></canvas>
+
+      <!-- Recording overlay -->
+      <div class="record-overlay hidden" id="recordOverlay">
+        <div class="record-dot"></div>
+        <div class="record-timer" id="recordTimer">00:00</div>
+        <div class="record-tracking" id="recordTracking">SF1234567890</div>
+      </div>
+    </div>
+
+    <div class="record-actions">
+      <button id="startRecordBtn" class="btn btn-record" disabled>
+        <span class="record-icon">⏺</span> 开始录制
+      </button>
+      <button id="stopRecordBtn" class="btn btn-stop hidden">
+        <span class="stop-icon">⏹</span> 停止录制
+      </button>
+    </div>
+  </div>
+
+  <!-- STEP 3: PREVIEW & UPLOAD -->
+  <div class="cam-step hidden" id="step-upload">
+    <div class="step-badge">步骤 3</div>
+    <h2 class="step-title">确认并上传</h2>
+
+    <div class="preview-box">
+      <video id="previewVideo" class="preview-video" controls playsinline></video>
+    </div>
+
+    <div class="preview-info">
+      <div class="preview-tracking" id="previewTracking">单号: --</div>
+      <div class="preview-size" id="previewSize">大小: --</div>
+    </div>
+
+    <!-- Upload progress -->
+    <div class="upload-progress hidden" id="uploadProgress">
+      <div class="progress-bar">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+      <div class="progress-text" id="progressText">上传中 0%</div>
+    </div>
+
+    <div class="upload-actions">
+      <button id="retakeBtn" class="btn btn-outline">重录</button>
+      <button id="uploadBtn" class="btn btn-primary">
+        上传到电脑
+      </button>
+      <button id="uploadDoneBtn" class="btn btn-success hidden">
+        ✅ 完成，录下一单
+      </button>
+    </div>
+  </div>
+
+  <!-- ERROR / OFFLINE MESSAGE -->
+  <div class="cam-message hidden" id="camMessage"></div>
+
+</div>
+
+<!-- Scripts -->
+<script src="/socket.io/socket.io.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="/js/upload-manager.js"></script>
+<script src="/js/camera.js"></script>
+
+</body>
+</html>

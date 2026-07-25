@@ -1,0 +1,9 @@
+{
+  "port": 3456,
+  "uploadsDir": "./uploads",
+  "usbImportDir": "./usb-import",
+  "retentionDays": 90,
+  "enableWatermark": false,
+  "watermarkFontSize": 28,
+  "maxFileSizeMB": 500
+}
