@@ -1,5 +1,5 @@
 /**
- * 打包录像 — 手动为主，拍照识别为辅
+ * 打包录像 — 实时预览 + 服务端ZBar自动解码
  */
 (function(){
 const $=s=>document.querySelector(s);
@@ -10,157 +10,141 @@ const btnScan=$('#btnScan');
 const btnRecord=$('#btnRecord');
 const btnUpload=$('#btnUpload');
 const btnNext=$('#btnNext');
-const scanInput=$('#scanInput');
 const recordInput=$('#recordInput');
 
 let videoBlob=null;
 let socket=null;
 let connected=false;
+let scanStream=null;      // camera for scanning
+let scanVideo=null;       // hidden video element for scanning
+let scanTimer=0;          // setInterval for auto-scan
+let scanRunning=false;
 
 // ---- Init ----
 function init(){
   socket=io({reconnection:true});
-  socket.on('connect',()=>{connected=true;connEl.textContent='🟢 已连接电脑';connEl.className='conn-ok';});
-  socket.on('disconnect',()=>{connected=false;connEl.textContent='🔴 未连接（视频存手机）';connEl.className='conn-err';});
+  socket.on('connect',()=>{connected=true;connEl.textContent='🟢 已连接';connEl.className='conn-ok';});
+  socket.on('disconnect',()=>{connected=false;connEl.textContent='🔴 未连接';connEl.className='conn-err';});
 
-  // Enable record button when user types tracking number
   trackingInput.oninput=()=>{
     const len=trackingInput.value.replace(/[^a-zA-Z0-9]/g,'').length;
     btnRecord.classList.toggle('hid',len<4);
   };
 
-  btnScan.onclick=()=>scanInput.click();
+  btnScan.onclick=startAutoScan;
   btnRecord.onclick=()=>recordInput.click();
   btnUpload.onclick=doUpload;
   btnNext.onclick=resetAll;
-
-  scanInput.onchange=handleScan;
   recordInput.onchange=handleRecord;
+
+  // Auto-start scanning
+  startAutoScan();
 }
 
-// ---- Take photo → server-side ZBar decode (primary) ----
-async function handleScan(){
-  const file=scanInput.files[0];
-  if(!file)return;
-  scanInput.value='';
+// ---- Open camera + auto-scan loop ----
+async function startAutoScan(){
+  if(scanRunning)return;
 
   btnScan.disabled=true;
-  btnScan.textContent='🔍 识别中...';
+  btnScan.textContent='📸 启动摄像头...';
 
-  // Show photo preview
-  scanPreview.src=URL.createObjectURL(file);
-  scanPreview.style.display='block';
-
-  let result=null;
-
-  // Method 1: Server-side ZBar (most reliable for express barcodes)
+  // Open back camera
   try{
-    btnScan.textContent='🔍 服务端解码...';
-    const form=new FormData();
-    form.append('image',file);
-    const resp=await fetch('/api/decode',{method:'POST',body:form});
-    const data=await resp.json();
-    if(data.success&&data.tracking){
-      result=data.tracking;
-    }
-  }catch(e){/* server unavailable, try client-side */}
+    scanStream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:{exact:'environment'},width:{ideal:1280},height:{ideal:720}},
+      audio:false
+    });
+  }catch(e){
+    try{scanStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1280}},audio:false});}
+    catch(e2){scanStream=await navigator.mediaDevices.getUserMedia({video:true,audio:false});}
+  }
 
-  // Method 2: Client-side BarcodeDetector + scanFile
-  if(!result){
+  // Create video in camera preview area
+  if(!scanVideo){
+    scanVideo=document.createElement('video');
+    scanVideo.setAttribute('autoplay','');scanVideo.setAttribute('muted','');scanVideo.setAttribute('playsinline','');
+    scanVideo.style.cssText='width:100%;height:100%;object-fit:cover';
+    const camView=document.getElementById('camView');
+    camView.insertBefore(scanVideo,camView.firstChild);
+  }
+  scanVideo.srcObject=scanStream;
+  await scanVideo.play();
+
+  btnScan.textContent='🔍 自动扫描中...';
+  btnScan.disabled=true;
+  scanPreview.style.display='block';
+  scanRunning=true;
+  connEl.textContent='🔍 将条码对准摄像头';
+
+  // Auto-scan loop: capture frame → send to server ZBar
+  async function scanOnce(){
+    if(!scanRunning||!scanVideo||scanVideo.readyState<2)return;
+
     try{
-      btnScan.textContent='🔍 本地解码...';
-      const img=new Image();
-      img.src=URL.createObjectURL(file);
-      await new Promise((r,rej)=>{img.onload=r;img.onerror=rej;});
-      const MAX=2000;let w=img.width,h=img.height;
-      if(w>MAX||h>MAX){const s=MAX/Math.max(w,h);w=Math.round(w*s);h=Math.round(h*s);}
-      const c=document.createElement('canvas');c.width=w;c.height=h;
-      c.getContext('2d').drawImage(img,0,0,w,h);
+      const c=document.createElement('canvas');
+      c.width=scanVideo.videoWidth||640;
+      c.height=scanVideo.videoHeight||480;
+      c.getContext('2d').drawImage(scanVideo,0,0,c.width,c.height);
+      const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',0.7));
 
-      if('BarcodeDetector' in window){
-        try{
-          const det=new BarcodeDetector({formats:['code_128','code_39','code_93','codabar',
-            'ean_13','ean_8','upc_a','upc_e','itf','pdf417','data_matrix','aztec','qr_code']});
-          const codes=await det.detect(c);
-          if(codes.length>0)result=codes[0].rawValue;
-        }catch(e){}
+      const fd=new FormData();fd.append('image',blob);
+      const resp=await fetch('/api/decode',{method:'POST',body:fd});
+      const data=await resp.json();
+
+      if(data.success&&data.tracking){
+        const clean=data.tracking.replace(/[^a-zA-Z0-9]/g,'').trim();
+        if(clean.length>=4){
+          // Found! Stop scanning
+          stopAutoScan();
+          trackingInput.value=clean;
+          trackingInput.dispatchEvent(new Event('input'));
+          // Show captured frame
+          scanPreview.src=URL.createObjectURL(blob);
+          btnScan.textContent='✅ 已识别: '+clean;
+          btnScan.disabled=false;
+          connEl.textContent='✅ 单号: '+clean;
+          return;
+        }
       }
+    }catch(e){/* ignore network errors, keep scanning */}
 
-      if(!result){
-        const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',0.92));
-        const f=new File([blob],'b.jpg',{type:'image/jpeg'});
-        const scanner=new Html5Qrcode('scanHelper');
-        result=await scanner.scanFile(f,false);
-      }
-    }catch(e){}
+    if(scanRunning)scanTimer=setTimeout(scanOnce,300); // 300ms between attempts
   }
-
-  // Done
-  btnScan.disabled=false;
-
-  if(result){
-    const clean=result.replace(/[^a-zA-Z0-9]/g,'').trim();
-    if(clean.length>=4){
-      trackingInput.value=clean;
-      trackingInput.dispatchEvent(new Event('input'));
-      btnScan.textContent='✅ 已识别';
-      setTimeout(()=>{btnScan.textContent='📸 拍照填单号';},1500);
-      return;
-    }
-  }
-
-  // Failed — user types manually
-  btnScan.textContent='📸 重拍（或手动输入）';
-  trackingInput.placeholder='看照片手动输入单号';
-  trackingInput.focus();
+  scanOnce();
 }
 
-// ---- Record video ----
+function stopAutoScan(){
+  scanRunning=false;
+  clearTimeout(scanTimer);
+  if(scanStream){scanStream.getTracks().forEach(t=>t.stop());scanStream=null;}
+  if(scanVideo){scanVideo.srcObject=null;scanVideo.style.display='none';}
+}
+
+// ---- Record ----
 function handleRecord(){
   const file=recordInput.files[0];
-  if(!file)return;
-  recordInput.value='';
+  if(!file)return;recordInput.value='';
   videoBlob=file;
-
-  btnRecord.classList.add('hid');
-  btnUpload.classList.remove('hid');
-  connEl.textContent='✅ 录像完成 — '+trackingInput.value;
-  connEl.className='conn-ok';
+  btnRecord.classList.add('hid');btnUpload.classList.remove('hid');
+  connEl.textContent='✅ 录像完成';connEl.className='conn-ok';
 }
 
-// ---- Upload ----
 async function doUpload(){
-  const tracking=trackingInput.value.replace(/[^a-zA-Z0-9]/g,'').trim();
-  if(!videoBlob||!tracking)return;
-
-  if(!connected){
-    connEl.textContent='⚠️ 未连接，视频已存手机。连WiFi后重试';
-    connEl.className='conn-err';
-    saveToPhone();
-    showNext();return;
-  }
-
-  btnUpload.disabled=true;
-  btnUpload.textContent='上传中...';
-
-  const fid=tracking+'_'+Date.now();
-  const sz=videoBlob.size,cs=256*1024,total=Math.ceil(sz/cs);
+  const t=trackingInput.value.replace(/[^a-zA-Z0-9]/g,'').trim();
+  if(!videoBlob||!t)return;
+  if(!connected){connEl.textContent='⚠️ 未连接，已存手机';saveToPhone();showNext();return;}
+  btnUpload.disabled=true;btnUpload.textContent='上传中...';
+  const fid=t+'_'+Date.now();const sz=videoBlob.size,cs=256*1024,total=Math.ceil(sz/cs);
   try{
-    await ws('upload:start',{fileId:fid,trackingNumber:tracking,totalSize:sz,duration:0});
+    await ws('upload:start',{fileId:fid,trackingNumber:t,totalSize:sz,duration:0});
     for(let i=0;i<total;i++){
       const b=videoBlob.slice(i*cs,Math.min((i+1)*cs,sz));
       await ws('upload:chunk',{fileId:fid,index:i,data:await b.arrayBuffer()});
       btnUpload.textContent='上传 '+Math.round((i+1)/total*100)+'%';
     }
     await ws('upload:complete',{fileId:fid});
-    btnUpload.textContent='☁️ 上传完成 ✅';
-    connEl.textContent='✅ 完成 — '+tracking;
-    connEl.className='conn-ok';
-  }catch(e){
-    connEl.textContent='⚠️ 上传失败，已存手机';
-    connEl.className='conn-err';
-    saveToPhone();
-  }
+    btnUpload.textContent='☁️ 上传完成';connEl.textContent='✅ 完成 — '+t;
+  }catch(e){connEl.textContent='⚠️ 上传失败，已存手机';saveToPhone();}
   showNext();
 }
 
@@ -178,19 +162,17 @@ function saveToPhone(){
   setTimeout(()=>URL.revokeObjectURL(url),10000);
 }
 
-function showNext(){
-  btnUpload.classList.add('hid');btnNext.classList.remove('hid');
-}
+function showNext(){btnUpload.classList.add('hid');btnNext.classList.remove('hid');}
 
-// ---- Next package ----
 function resetAll(){
   trackingInput.value='';trackingInput.placeholder='扫描或输入快递单号';
   scanPreview.src='';scanPreview.style.display='none';
   videoBlob=null;
   btnScan.textContent='📸 拍照填单号';btnScan.disabled=false;
-  btnRecord.classList.add('hid');
-  btnUpload.classList.add('hid');btnNext.classList.add('hid');
+  btnRecord.classList.add('hid');btnUpload.classList.add('hid');btnNext.classList.add('hid');
   connEl.textContent=connected?'🟢 准备就绪':'🔴 未连接';connEl.className=connected?'conn-ok':'conn-err';
+  stopAutoScan();
+  startAutoScan(); // restart scanner for next package
 }
 
 init();

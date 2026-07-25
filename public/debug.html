@@ -1,0 +1,118 @@
+<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+<title>条码诊断</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;color:#fff;font-family:-apple-system,sans-serif;overflow:hidden;height:100%}
+#app{height:100%;display:flex;flex-direction:column}
+#status{text-align:center;padding:14px;font-size:22px;font-weight:700;flex-shrink:0}
+#view{flex:1;position:relative;overflow:hidden;background:#000}
+#view video{width:100%;height:100%;object-fit:cover}
+#bar{position:absolute;bottom:30px;left:20px;right:20px;background:rgba(0,0,0,0.7);
+  color:#fff;padding:10px;border-radius:10px;text-align:center;font-size:16px;z-index:10}
+#btn{width:100%;padding:20px;font-size:22px;font-weight:700;border:none;cursor:pointer;flex-shrink:0}
+#btn:active{opacity:0.8}
+.btn-ready{background:#2563eb;color:#fff}
+.btn-scan{background:#f59e0b;color:#000}
+.btn-ok{background:#059669;color:#fff}
+.btn-err{background:#dc2626;color:#fff}
+#btn:disabled{background:#333;color:#666}
+#log{background:#111;padding:8px 14px;font-size:12px;line-height:1.6;flex-shrink:0;max-height:100px;overflow-y:auto}
+.g{color:#4ade80}.r{color:#f87171}.y{color:#fbbf24}
+</style></head><body>
+<div id="app">
+  <div id="status">⏳ 启动中...</div>
+  <div id="view">
+    <video id="v" autoplay muted playsinline></video>
+    <div id="bar">将条码对准屏幕</div>
+  </div>
+  <div id="log"></div>
+  <button id="btn" disabled class="btn-ready">等待摄像头...</button>
+</div>
+<script>
+const S=document.getElementById('status');
+const B=document.getElementById('bar');
+const L=document.getElementById('log');
+const btn=document.getElementById('btn');
+const v=document.getElementById('v');
+let stream=null;
+
+function log(s,c=''){L.innerHTML+=`<span class="${c}">${s}</span><br>`;L.scrollTop=9999;}
+
+async function start(){
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:{exact:'environment'},width:{ideal:1920},height:{ideal:1080}},
+      audio:false
+    });
+  }catch(e){
+    try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1280}},audio:false});}
+    catch(e2){stream=await navigator.mediaDevices.getUserMedia({video:true,audio:false});}
+  }
+  v.srcObject=stream;await v.play();
+  const track=stream.getVideoTracks()[0];
+  S.textContent='✅ 摄像头就绪';
+  S.style.background='#064e3b';S.style.color='#6ee7b7';
+  B.textContent='将条码对准屏幕，点下方按钮拍照';
+  btn.textContent='📸 拍照识别条码';
+  btn.className='btn-ready';
+  btn.disabled=false;
+  log(`✅ 摄像头: ${track.label} ${v.videoWidth}x${v.videoHeight}`,'g');
+}
+
+btn.onclick=async()=>{
+  btn.disabled=true;btn.textContent='🔍 识别中...';btn.className='btn-scan';
+  B.textContent='正在解码，请稍候...';
+  L.innerHTML='';
+
+  // Capture
+  const c=document.createElement('canvas');
+  c.width=v.videoWidth||1280;c.height=v.videoHeight||720;
+  c.getContext('2d').drawImage(v,0,0,c.width,c.height);
+  const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',0.9));
+  const file=new File([blob],'c.jpg',{type:'image/jpeg'});
+  log(`📸 捕获图片 ${c.width}x${c.height} ${(blob.size/1024).toFixed(0)}KB`,'y');
+
+  // Server ZBar
+  let result=null;
+  try{
+    const fd=new FormData();fd.append('image',file);
+    const r=await fetch('/api/decode',{method:'POST',body:fd});
+    const d=await r.json();
+    if(d.success){result=d.tracking;log(`✅ 服务端ZBar: "${d.tracking}"`,'g');}
+    else log(`❌ 服务端ZBar: ${d.error}`,'r');
+  }catch(e){log(`❌ 服务端连接失败: ${e.message}`,'r');}
+
+  // Browser fallback
+  if(!result&&'BarcodeDetector' in window){
+    try{
+      const det=new BarcodeDetector({formats:['code_128','code_39','code_93','codabar',
+        'ean_13','ean_8','upc_a','upc_e','itf','pdf417','data_matrix','aztec','qr_code']});
+      const codes=await det.detect(c);
+      if(codes.length>0){result=codes[0].rawValue;log(`✅ 浏览器: "${result}"`,'g');}
+      else log('❌ 浏览器: 未检测到','r');
+    }catch(e){log(`❌ 浏览器: ${e.message}`,'r');}
+  }
+
+  if(result){
+    S.textContent='✅ 识别成功: '+result;
+    S.style.background='#064e3b';S.style.color='#6ee7b7';
+    B.textContent='条码识别成功！单号: '+result;
+    btn.textContent='📸 再拍一次';btn.className='btn-ok';
+  }else{
+    S.textContent='❌ 未识别到条码';
+    S.style.background='#450a0a';S.style.color='#fca5a5';
+    B.textContent='未识别，请对准条码、保持稳定、光线充足再拍';
+    btn.textContent='📸 对准条码再拍';btn.className='btn-err';
+  }
+  btn.disabled=false;
+};
+
+start().catch(e=>{
+  S.textContent='❌ 摄像头失败';
+  S.style.background='#450a0a';S.style.color='#fca5a5';
+  B.textContent='错误: '+e.message;
+  btn.textContent='❌ 摄像头启动失败，刷新重试';
+  log('❌ 摄像头: '+e.message,'r');
+});
+</script>
+</body></html>

@@ -39,8 +39,11 @@ h2{text-align:center;padding:8px 0 0;font-size:20px}
 .btn:disabled{opacity:0.25}
 .hid{display:none!important}
 
-#scanInput,#recordInput{display:none}
+#recordInput{display:none}
 #scanHelper{display:none}
+#camView{width:100%;height:200px;background:#000;border-radius:10px;overflow:hidden;position:relative}
+#camView video{width:100%;height:100%;object-fit:cover}
+#camHint{position:absolute;bottom:8px;left:0;right:0;text-align:center;font-size:13px;color:#fff;text-shadow:0 0 4px #000}
 </style>
 </head>
 <body>
@@ -55,20 +58,17 @@ h2{text-align:center;padding:8px 0 0;font-size:20px}
     <input type="text" id="trackingInput" placeholder="扫描或输入快递单号" inputmode="numeric" autocomplete="off">
   </div>
 
-  <!-- Photo preview -->
-  <img id="scanPreview">
+  <!-- Camera preview -->
+  <div id="camView"><div id="camHint">将条码对准摄像头</div></div>
 
   <!-- Buttons -->
-  <div class="btn-row">
-    <button class="btn btn-blue" id="btnScan">📸 拍照填单号</button>
-  </div>
+  <button class="btn btn-blue hid" id="btnScan">📸 重新扫码</button>
   <button class="btn btn-red hid" id="btnRecord">⏺ 开始录像</button>
   <button class="btn btn-green hid" id="btnUpload">☁️ 上传到电脑</button>
   <button class="btn btn-purple hid" id="btnNext">✅ 下一单</button>
   <div style="flex:1"></div>
 </div>
 
-<input type="file" id="scanInput" accept="image/*" capture="environment">
 <input type="file" id="recordInput" accept="video/*" capture="environment">
 <div id="scanHelper"></div>
 
