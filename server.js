@@ -244,8 +244,9 @@ server.listen(PORT, async () => {
   try {
     const localtunnel = require('localtunnel');
     const tunnel = await localtunnel({ port: PORT, local_https: true, allow_invalid_cert: true });
-    console.log(`   🌐 公网地址: ${tunnel.url}/camera`);
-    console.log(`   (手机用流量也能访问！)\n`);
+    console.log(`   🌐 手机录像: ${tunnel.url}/camera`);
+    console.log(`   🌐 管理后台: ${tunnel.url}`);
+    console.log(`   (手机流量/外网都能访问！)\n`);
     process.env.TUNNEL_URL = tunnel.url;
     tunnel.on('close', () => console.log('[Tunnel] Disconnected'));
   } catch (e) {
