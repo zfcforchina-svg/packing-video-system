@@ -1,0 +1,14 @@
+{
+  "description": "打包录像系统",
+  "packOptions": { "ignore": [] },
+  "setting": {
+    "urlCheck": false,
+    "es6": true,
+    "postcss": true,
+    "minified": true
+  },
+  "compileType": "miniprogram",
+  "appid": "touristappid",
+  "projectname": "packing-video",
+  "condition": {}
+}

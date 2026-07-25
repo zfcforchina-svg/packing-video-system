@@ -1,0 +1,17 @@
+.app{padding:20px;display:flex;flex-direction:column;gap:14px}
+.header{text-align:center;font-size:20px;font-weight:700;padding:20px 0 0}
+.status{text-align:center;font-size:12px;padding:4px 0}
+.status.ok{color:#4ade80}.status.err{color:#f87171}
+
+.card{background:#1a1a1a;border-radius:12px;padding:16px}
+.label{font-size:12px;color:#64748b;margin-bottom:8px}
+.tracking{width:100%;padding:14px;font-size:20px;font-weight:700;text-align:center;background:#0a0a0a;color:#fff;border:2px solid #333;border-radius:10px;letter-spacing:2px}
+
+.btn{width:100%;padding:16px;border-radius:12px;font-size:18px;font-weight:700;text-align:center}
+.btn-blue{background:#2563eb;color:#fff}
+.btn-red{background:#dc2626;color:#fff}
+.btn-green{background:#059669;color:#fff}
+.btn-purple{background:#7c3aed;color:#fff}
+.btn[disabled]{opacity:0.25}
+
+.info{font-size:12px;color:#94a3b8;text-align:center;word-break:break-all}

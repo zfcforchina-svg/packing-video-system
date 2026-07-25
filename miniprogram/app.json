@@ -1,0 +1,9 @@
+{
+  "pages": ["pages/index/index"],
+  "window": {
+    "navigationBarTitleText": "打包录像",
+    "navigationBarBackgroundColor": "#111",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#111"
+  }
+}
