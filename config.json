@@ -8,10 +8,11 @@
   "maxFileSizeMB": 500,
   "oss": {
     "enabled": false,
-    "region": "oss-cn-hangzhou",
-    "bucket": "your-bucket-name",
+    "accountId": "",
+    "bucket": "",
     "accessKeyId": "",
     "accessKeySecret": "",
-    "endpoint": ""
+    "endpoint": "",
+    "publicEndpoint": ""
   }
 }

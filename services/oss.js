@@ -1,85 +1,91 @@
-const OSS = require('ali-oss');
-const path = require('path');
+const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const fs = require('fs');
 
 let client = null;
 let ossConfig = null;
+let bucket = null;
+let publicEndpoint = null;
 
 /**
- * Initialize OSS client from config.
- * Call this once on startup and whenever config changes.
+ * Initialize S3-compatible client (Cloudflare R2 / Aliyun OSS / Backblaze B2).
+ * R2 is recommended: 10GB free, no egress fees.
  */
 function init(cfg) {
   ossConfig = cfg.oss || {};
   if (!ossConfig.enabled || !ossConfig.accessKeyId) {
-    console.log('[OSS] Not configured — cloud storage disabled');
+    console.log('[Cloud] Not configured — cloud storage disabled');
     client = null;
     return;
   }
   try {
-    client = new OSS({
-      region: ossConfig.region || 'oss-cn-hangzhou',
-      bucket: ossConfig.bucket,
-      accessKeyId: ossConfig.accessKeyId,
-      accessKeySecret: ossConfig.accessKeySecret,
-      ...(ossConfig.endpoint ? { endpoint: ossConfig.endpoint } : {}),
+    client = new S3Client({
+      region: ossConfig.region || 'auto',
+      endpoint: ossConfig.endpoint || `https://${ossConfig.accountId}.r2.cloudflarestorage.com`,
+      credentials: {
+        accessKeyId: ossConfig.accessKeyId,
+        secretAccessKey: ossConfig.accessKeySecret,
+      },
+      forcePathStyle: true,
     });
-    console.log('[OSS] Initialized — bucket:', ossConfig.bucket);
+    bucket = ossConfig.bucket;
+    publicEndpoint = ossConfig.publicEndpoint || null; // e.g., https://cdn.yourdomain.com
+    console.log('[Cloud] Initialized — bucket:', bucket);
   } catch (e) {
-    console.error('[OSS] Init failed:', e.message);
+    console.error('[Cloud] Init failed:', e.message);
     client = null;
   }
 }
 
 /**
- * Upload a local file to OSS.
- * @param {string} localPath - absolute path to the video file
- * @param {string} ossKey - object key in OSS (e.g., "2026-07-26/SF123.mp4")
- * @returns {Promise<string|null>} OSS URL or null if disabled/failed
+ * Upload a local file to cloud storage.
+ * @returns {Promise<string|null>} public URL or null
  */
 async function upload(localPath, ossKey) {
-  if (!client || !ossConfig.enabled) return null;
+  if (!client || !bucket) return null;
   try {
-    const result = await client.put(ossKey.replace(/\\/g, '/'), localPath);
-    // Return the OSS URL
-    if (ossConfig.endpoint) {
-      return `${ossConfig.endpoint}/${ossKey}`;
+    const body = fs.createReadStream(localPath);
+    await client.send(new PutObjectCommand({
+      Bucket: bucket,
+      Key: ossKey.replace(/\\/g, '/'),
+      Body: body,
+    }));
+    if (publicEndpoint) {
+      return `${publicEndpoint}/${ossKey.replace(/\\/g, '/')}`;
     }
-    return result.url;
+    // Construct R2/OSS URL
+    const endpoint = ossConfig.endpoint || `https://${ossConfig.accountId}.r2.cloudflarestorage.com`;
+    return `${endpoint}/${bucket}/${ossKey.replace(/\\/g, '/')}`;
   } catch (e) {
-    console.error('[OSS] Upload failed:', e.message);
+    console.error('[Cloud] Upload failed:', e.message);
     return null;
   }
 }
 
 /**
- * Get a signed URL for temporary access (expires in 1 hour).
- * Useful for sharing links without making bucket public.
+ * Get a public URL for a cloud-stored video.
  */
-async function getSignedUrl(ossKey, expiresSec = 3600) {
-  if (!client || !ossConfig.enabled) return null;
-  try {
-    return await client.signatureUrl(ossKey.replace(/\\/g, '/'), { expires: expiresSec });
-  } catch (e) {
-    return null;
-  }
+function getPublicUrl(ossKey) {
+  if (publicEndpoint) return `${publicEndpoint}/${ossKey.replace(/\\/g, '/')}`;
+  if (!ossConfig || !ossConfig.endpoint) return null;
+  return `${ossConfig.endpoint}/${bucket}/${ossKey.replace(/\\/g, '/')}`;
 }
 
 /**
- * Delete a file from OSS.
+ * Delete a file from cloud storage.
  */
 async function remove(ossKey) {
-  if (!client || !ossConfig.enabled) return false;
+  if (!client || !bucket) return false;
   try {
-    await client.delete(ossKey.replace(/\\/g, '/'));
+    await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: ossKey.replace(/\\/g, '/') }));
     return true;
   } catch (e) {
+    console.error('[Cloud] Delete failed:', e.message);
     return false;
   }
 }
 
 function isEnabled() {
-  return !!(client && ossConfig && ossConfig.enabled);
+  return !!(client && bucket && ossConfig && ossConfig.enabled);
 }
 
-module.exports = { init, upload, getSignedUrl, remove, isEnabled };
+module.exports = { init, upload, getPublicUrl, remove, isEnabled };
