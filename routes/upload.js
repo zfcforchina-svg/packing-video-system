@@ -55,6 +55,13 @@ module.exports = function (_io, db, config) {
       uploadMethod: 'http',
     });
 
+    // Sync to cloud storage (R2/OSS)
+    const oss = require('../services/oss');
+    const fullPath = path.join(__dirname, '..', 'uploads', relPath);
+    oss.upload(fullPath, relPath).then(url => {
+      if (url) console.log('[Cloud] Synced (HTTP):', trackingNumber);
+    });
+
     res.json({
       success: true,
       id: result.lastInsertRowid,

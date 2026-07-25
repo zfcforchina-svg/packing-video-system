@@ -7,12 +7,10 @@
   "watermarkFontSize": 28,
   "maxFileSizeMB": 500,
   "oss": {
-    "enabled": false,
-    "accountId": "",
-    "bucket": "",
-    "accessKeyId": "",
-    "accessKeySecret": "",
-    "endpoint": "",
-    "publicEndpoint": ""
+    "enabled": true,
+    "accountId": "f13474ed901a9c776c407bb94510052e",
+    "bucket": "video",
+    "accessKeyId": "8ce82590bb7ee656cad88d2889e763e4",
+    "accessKeySecret": "2069c4a65f3550a0d38d6aa0d9219a73356e979dc115d2cc20eb03c41e7bc312"
   }
 }

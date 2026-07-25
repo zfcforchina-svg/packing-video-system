@@ -25,7 +25,7 @@ function init(cfg) {
         accessKeyId: ossConfig.accessKeyId,
         secretAccessKey: ossConfig.accessKeySecret,
       },
-      forcePathStyle: true,
+      forcePathStyle: false,
     });
     bucket = ossConfig.bucket;
     publicEndpoint = ossConfig.publicEndpoint || null; // e.g., https://cdn.yourdomain.com
