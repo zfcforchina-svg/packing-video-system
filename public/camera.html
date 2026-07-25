@@ -4,7 +4,6 @@
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#000;color:#fff;font-family:-apple-system,sans-serif;height:100vh;overflow:hidden}
 #vid{width:100vw;height:100vh;object-fit:cover;position:fixed;top:0;left:0;z-index:1}
-/* Scan region guide */
 #guide{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2;pointer-events:none;
   width:80vw;height:60px;border:2px solid rgba(37,99,235,0.7);border-radius:6px;
   box-shadow:0 0 0 9999px rgba(0,0,0,0.45)}
@@ -15,96 +14,90 @@ body{background:#000;color:#fff;font-family:-apple-system,sans-serif;height:100v
   display:flex;flex-direction:column;gap:8px}
 #status{font-size:12px;text-align:center;opacity:0.8}
 #tracking{font-size:30px;font-weight:700;text-align:center;min-height:44px}
-.btn{width:100%;padding:16px;border:none;border-radius:12px;font-size:18px;font-weight:700;cursor:pointer;text-align:center}
+.btn-row{display:flex;gap:8px}
+.btn{flex:1;padding:16px;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;text-align:center}
 .btn:active{opacity:0.8}.btn:disabled{opacity:0.3}
-.btn-rec{background:#dc2626;color:#fff}.btn-up{background:#2563eb;color:#fff}.btn-next{background:#059669;color:#fff}
-.g{color:#4ade80}.y{color:#fbbf24}.hid{display:none!important}
-#recordInput{display:none}
+.btn-stop{background:#1e293b;color:#fff}.btn-up{background:#2563eb;color:#fff}.btn-next{background:#059669;color:#fff}
+.g{color:#4ade80}.y{color:#fbbf24}.r{color:#f87171}.hid{display:none!important}
+/* Recording indicator */
+#recBadge{position:fixed;top:16px;right:16px;z-index:20;background:rgba(220,38,38,0.9);
+  padding:6px 14px;border-radius:20px;font-size:14px;font-weight:600;display:none;align-items:center;gap:8px}
+#recBadge .dot{width:8px;height:8px;background:#fff;border-radius:50%;animation:pulse 1s ease infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+#recBadge .timer{margin-left:4px}
+#stillBar{position:fixed;top:56px;left:50%;transform:translateX(-50%);z-index:20;display:none;
+  background:rgba(0,0,0,0.7);padding:6px 14px;border-radius:20px;font-size:12px}
 </style></head><body>
 <video id="vid" autoplay muted playsinline></video>
 <div id="guide"></div>
+<div id="recBadge"><span class="dot"></span>录制中 <span class="timer" id="recTimer">00:00</span></div>
+<div id="stillBar">画面静止 <span id="stillCount">0</span>/10秒 将自动停止</div>
 <div id="ui">
   <div id="status" class="y">⏳ 启动中...</div>
   <div id="tracking">将条码对准框内</div>
-  <button class="btn btn-rec hid" id="btnRec">⏺ 开始录像</button>
-  <button class="btn btn-up hid" id="btnUp">☁️ 上传到电脑</button>
+  <div class="btn-row hid" id="btnRow">
+    <button class="btn btn-stop" id="btnStop">⏹ 手动停止</button>
+    <button class="btn btn-up" id="btnUp">☁️ 上传</button>
+  </div>
   <button class="btn btn-next hid" id="btnNext">✅ 下一单</button>
 </div>
-<input type="file" id="recordInput" accept="video/*" capture="environment">
 <script src="/socket.io/socket.io.js"></script>
 <script>
 const $=s=>document.querySelector(s);
 const vid=$('#vid'),statusEl=$('#status'),trackingEl=$('#tracking'),guide=$('#guide');
-const btnRec=$('#btnRec'),btnUp=$('#btnUp'),btnNext=$('#btnNext');
-const recordInput=$('#recordInput');
+const btnRow=$('#btnRow'),btnStop=$('#btnStop'),btnUp=$('#btnUp'),btnNext=$('#btnNext');
+const recBadge=$('#recBadge'),recTimer=$('#recTimer');
+const stillBar=$('#stillBar'),stillCount=$('#stillCount');
 
 let stream=null,running=false,busy=false,count=0;
-let tracking='',videoBlob=null,socket=null,connected=false;
-let focusApplied=false;
+let tracking='',videoBlob=null,socket=null,connected=false,focusApplied=false;
+let recorder=null,recChunks=[],recStart=0,recInterval=0;
+let motionDetect=false,stillFrames=0,pixelDiff=0;
+let prevFrame=null; // for motion detection
+let isRecording=false;
 
 // ---- Init ----
 async function init(){
   socket=io({reconnection:true});
-  socket.on('connect',()=>{connected=true;});
-  socket.on('disconnect',()=>{connected=false;});
+  socket.on('connect',()=>connected=true);
+  socket.on('disconnect',()=>connected=false);
 
   await openCamera();
   await applyAutoFocus();
   vid.srcObject=stream;await vid.play();
-  statusEl.textContent='🔍 自动对焦扫描中...';statusEl.className='y';
-  guide.style.display='block';
+  statusEl.textContent='🔍 自动对焦扫描...';statusEl.className='y';
   running=true;scanLoop();
-
-  // Re-apply focus periodically (some cameras drift)
   setInterval(applyAutoFocus,5000);
 
-  btnRec.onclick=()=>recordInput.click();
+  btnStop.onclick=stopRec;
   btnUp.onclick=doUpload;
   btnNext.onclick=resetAll;
-  recordInput.onchange=handleRecord;
 }
 
-// ---- Open camera with high-res ----
+// ---- Camera ----
 async function openCamera(){
-  const constraints=[
-    {video:{facingMode:{exact:'environment'},width:{ideal:1920},height:{ideal:1080},audio:false}},
-    {video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720},audio:false}},
-    {video:{width:{ideal:1280},audio:false}},
+  const cs=[
+    {video:{facingMode:{exact:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false},
+    {video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}},audio:false},
+    {video:{width:{ideal:1280}},audio:false},
   ];
-  for(const c of constraints){
-    try{stream=await navigator.mediaDevices.getUserMedia(c);return;}catch(e){}
-  }
+  for(const c of cs){try{stream=await navigator.mediaDevices.getUserMedia(c);return;}catch(e){}}
 }
 
-// ---- Apply auto-focus ----
 async function applyAutoFocus(){
   if(!stream||focusApplied)return;
-  const track=stream.getVideoTracks()[0];
-  if(!track)return;
+  const track=stream.getVideoTracks()[0];if(!track)return;
   try{
     const caps=track.getCapabilities();
     const adv=[];
-    // Continuous auto-focus
-    if(caps.focusMode&&caps.focusMode.includes('continuous')){
-      adv.push({focusMode:'continuous'});
-    }
-    // Push focus to close range (better for barcode)
-    if(caps.focusDistance&&caps.focusDistance.min<0.1){
-      adv.push({focusDistance:caps.focusDistance.min});
-    }
-    // 2x zoom for better barcode detail
-    if(caps.zoom&&caps.zoom.max>=2){
-      adv.push({zoom:Math.min(2,caps.zoom.max)});
-    }
-    if(adv.length>0){
-      await track.applyConstraints({advanced:adv});
-      focusApplied=true;
-      console.log('Auto-focus applied:',adv);
-    }
-  }catch(e){console.log('Focus not available:',e.message);}
+    if(caps.focusMode&&caps.focusMode.includes('continuous'))adv.push({focusMode:'continuous'});
+    if(caps.focusDistance&&caps.focusDistance.min<0.1)adv.push({focusDistance:caps.focusDistance.min});
+    if(caps.zoom&&caps.zoom.max>=2)adv.push({zoom:Math.min(2,caps.zoom.max)});
+    if(adv.length>0){await track.applyConstraints({advanced:adv});focusApplied=true;}
+  }catch(e){}
 }
 
-// ---- Auto-scan loop ----
+// ---- Scan loop ----
 async function scanLoop(){
   if(!running)return;
   setTimeout(scanLoop,350);
@@ -118,7 +111,7 @@ async function scanLoop(){
     const fd=new FormData();fd.append('image',blob);
     const resp=await fetch('/api/decode',{method:'POST',body:fd});
     const data=await resp.json();
-    statusEl.textContent='🔍 #'+count;
+    if(!isRecording)statusEl.textContent='🔍 #'+count;
 
     if(data.success&&data.tracking){
       const clean=data.tracking.replace(/[^a-zA-Z0-9]/g,'').trim();
@@ -126,44 +119,112 @@ async function scanLoop(){
         tracking=clean;
         trackingEl.textContent='📦 '+tracking;
         trackingEl.className='g';
-        statusEl.textContent='✅ 识别成功 — 点下方录像';
-        statusEl.className='g';
         guide.style.display='none';
-        btnRec.classList.remove('hid');btnRec.disabled=false;
         if(navigator.vibrate)navigator.vibrate(200);
-        // Pause scanning — already found
+        // Auto-start recording!
         running=false;
+        startRec();
       }
     }
   }catch(e){}
   busy=false;
 }
 
-// ---- Record ----
-function handleRecord(){
-  const f=recordInput.files[0];if(!f)return;recordInput.value='';
-  videoBlob=f;
-  btnRec.classList.add('hid');btnUp.classList.remove('hid');
-  statusEl.textContent='✅ 录像完成 ('+(f.size/1048576).toFixed(1)+'MB)';statusEl.className='g';
+// ---- Recording (auto-start, motion-detect auto-stop) ----
+function startRec(){
+  if(isRecording)return;
+  isRecording=true;recChunks=[];stillFrames=0;prevFrame=null;
+
+  const mime=MediaRecorder.isTypeSupported('video/webm;codecs=vp8')?'video/webm;codecs=vp8':'video/webm';
+  recorder=new MediaRecorder(stream,{mimeType:mime});
+  recorder.ondataavailable=e=>{if(e.data.size)recChunks.push(e.data);};
+  recorder.onstop=()=>{
+    clearInterval(recInterval);clearInterval(motionDetect);
+    isRecording=false;
+    recBadge.style.display='none';stillBar.style.display='none';
+    videoBlob=new Blob(recChunks,{type:mime});
+    statusEl.textContent='✅ 录像完成 ('+(videoBlob.size/1048576).toFixed(1)+'MB) 自动上传中...';
+    statusEl.className='g';
+    showButtons();
+    doUpload(); // auto-upload!
+  };
+  recorder.start(1000);
+  recStart=Date.now();
+  recInterval=setInterval(updateRecTimer,500);
+  updateRecTimer();
+
+  // UI
+  recBadge.style.display='flex';stillBar.style.display='block';
+  btnRow.classList.add('hid');btnNext.classList.add('hid');
+  statusEl.textContent='🔴 自动录制中 — 静止10秒自动停止';
+  statusEl.className='r';
+
+  // Motion detection loop
+  motionDetect=setInterval(checkMotion,1000);
+}
+
+function updateRecTimer(){
+  const s=Math.floor((Date.now()-recStart)/1000);
+  recTimer.textContent=String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+}
+
+// ---- Motion detection ----
+function checkMotion(){
+  if(!isRecording||vid.readyState<2||!vid.videoWidth)return;
+
+  const c=document.createElement('canvas');
+  c.width=160;c.height=120; // downsample for speed
+  const ctx=c.getContext('2d');
+  ctx.drawImage(vid,0,0,c.width,c.height);
+  const frame=ctx.getImageData(0,0,c.width,c.height);
+
+  if(prevFrame){
+    let diff=0;
+    const d1=prevFrame.data,d2=frame.data;
+    for(let i=0;i<d1.length;i+=16){ // sample every 16th pixel
+      diff+=Math.abs(d1[i]-d2[i])+Math.abs(d1[i+1]-d2[i+1])+Math.abs(d1[i+2]-d2[i+2]);
+    }
+    pixelDiff=diff/(c.width*c.height/16*3); // normalize
+    const THRESHOLD=8; // below this = "still"
+
+    if(pixelDiff<THRESHOLD){
+      stillFrames++;
+      stillCount.textContent=stillFrames;
+      if(stillFrames>=10){
+        // 10 seconds of stillness → auto-stop
+        statusEl.textContent='画面静止10秒，自动停止录制...';
+        statusEl.className='g';
+        stopRec();
+      }
+    }else{
+      stillFrames=0;
+      stillCount.textContent='0';
+    }
+    stillCount.textContent=stillFrames;
+  }
+  prevFrame=frame;
+}
+
+function stopRec(){
+  if(recorder&&recorder.state==='recording')recorder.stop();
 }
 
 // ---- Upload ----
 async function doUpload(){
   if(!videoBlob||!tracking)return;
   btnUp.disabled=true;btnUp.textContent='上传中...';
-  if(!connected){statusEl.textContent='⚠️ 未连接，已存手机';saveToPhone();showNext();return;}
+  if(!connected){statusEl.textContent='⚠️ 未连接，已存手机';saveToPhone();done();return;}
   const fid=tracking+'_'+Date.now();const sz=videoBlob.size,cs=256*1024,total=Math.ceil(sz/cs);
   try{
     await ws('upload:start',{fileId:fid,trackingNumber:tracking,totalSize:sz,duration:0});
     for(let i=0;i<total;i++){
-      const b=videoBlob.slice(i*cs,Math.min((i+1)*cs,sz));
-      await ws('upload:chunk',{fileId:fid,index:i,data:await b.arrayBuffer()});
+      await ws('upload:chunk',{fileId:fid,index:i,data:await videoBlob.slice(i*cs,Math.min((i+1)*cs,sz)).arrayBuffer()});
       btnUp.textContent='☁️ '+Math.round((i+1)/total*100)+'%';
     }
     await ws('upload:complete',{fileId:fid});
     statusEl.textContent='✅ 上传完成 — '+tracking;statusEl.className='g';
   }catch(e){statusEl.textContent='⚠️ 上传失败，已存手机';saveToPhone();}
-  showNext();
+  done();
 }
 function ws(ev,d){return new Promise((resolve,reject)=>{
   const t=setTimeout(()=>reject(new Error('超时')),120000);
@@ -176,14 +237,17 @@ function saveToPhone(){
   document.body.appendChild(a);a.click();document.body.removeChild(a);
   setTimeout(()=>URL.revokeObjectURL(url),10000);
 }
-function showNext(){btnUp.classList.add('hid');btnNext.classList.remove('hid');}
+function showButtons(){btnRow.classList.remove('hid');}
+function done(){btnNext.classList.remove('hid');}
 
-// ---- Next package ----
+// ---- Next ----
 function resetAll(){
-  tracking='';videoBlob=null;count=0;
+  tracking='';videoBlob=null;recorder=null;recChunks=[];count=0;isRecording=false;
   trackingEl.textContent='将条码对准框内';trackingEl.className='';
-  btnRec.classList.add('hid');btnUp.classList.add('hid');btnNext.classList.add('hid');
-  statusEl.textContent='🔍 重新扫描中...';statusEl.className='y';
+  btnRow.classList.add('hid');btnNext.classList.add('hid');
+  btnUp.disabled=false;btnUp.textContent='☁️ 上传';
+  recBadge.style.display='none';stillBar.style.display='none';
+  statusEl.textContent='🔍 重新扫描...';statusEl.className='y';
   guide.style.display='block';
   running=true;scanLoop();
 }
