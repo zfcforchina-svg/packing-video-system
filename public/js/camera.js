@@ -76,16 +76,22 @@ async function startAutoScan(){
   scanRunning=true;
   connEl.textContent='🔍 将条码对准摄像头';
 
-  // Auto-scan loop: capture frame → send to server ZBar
-  async function scanOnce(){
-    if(!scanRunning||!scanVideo||scanVideo.readyState<2)return;
+  // Auto-scan loop: always keep running, even if frame not ready
+  let scanBusy=false;
+  async function scanLoop(){
+    if(!scanRunning)return;
+    scanTimer=setTimeout(scanLoop,400);
 
+    if(scanBusy)return;
+    if(!scanVideo||scanVideo.readyState<2||!scanVideo.videoWidth)return;
+
+    scanBusy=true;
     try{
       const c=document.createElement('canvas');
-      c.width=scanVideo.videoWidth||640;
-      c.height=scanVideo.videoHeight||480;
+      c.width=scanVideo.videoWidth;
+      c.height=scanVideo.videoHeight;
       c.getContext('2d').drawImage(scanVideo,0,0,c.width,c.height);
-      const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',0.7));
+      const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',0.85));
 
       const fd=new FormData();fd.append('image',blob);
       const resp=await fetch('/api/decode',{method:'POST',body:fd});
@@ -94,23 +100,18 @@ async function startAutoScan(){
       if(data.success&&data.tracking){
         const clean=data.tracking.replace(/[^a-zA-Z0-9]/g,'').trim();
         if(clean.length>=4){
-          // Found! Stop scanning
           stopAutoScan();
           trackingInput.value=clean;
           trackingInput.dispatchEvent(new Event('input'));
-          // Show captured frame
-          scanPreview.src=URL.createObjectURL(blob);
           btnScan.textContent='✅ 已识别: '+clean;
           btnScan.disabled=false;
           connEl.textContent='✅ 单号: '+clean;
-          return;
         }
       }
-    }catch(e){/* ignore network errors, keep scanning */}
-
-    if(scanRunning)scanTimer=setTimeout(scanOnce,300); // 300ms between attempts
+    }catch(e){/* keep scanning */}
+    scanBusy=false;
   }
-  scanOnce();
+  scanLoop();
 }
 
 function stopAutoScan(){
