@@ -7,12 +7,19 @@
     "start": "node server.js",
     "dev": "node --watch server.js"
   },
-  "keywords": ["packing", "video", "ecommerce", "barcode", "express"],
+  "keywords": [
+    "packing",
+    "video",
+    "ecommerce",
+    "barcode",
+    "express"
+  ],
   "license": "MIT",
   "dependencies": {
     "better-sqlite3": "^11.0.0",
     "chokidar": "^4.0.0",
     "express": "^4.21.0",
+    "html5-qrcode": "^2.3.8",
     "multer": "^1.4.5-lts.1",
     "socket.io": "^4.7.0",
     "uuid": "^10.0.0"
