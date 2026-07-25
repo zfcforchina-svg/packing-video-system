@@ -41,8 +41,8 @@ function init(){
 
 // ---- STEP 1: Take photo → decode barcode ----
 async function handleScan(){
-  const file=scanInput.files[0];
-  if(!file)return;
+  const rawFile=scanInput.files[0];
+  if(!rawFile)return;
   scanInput.value='';
 
   btnScan.disabled=true;
@@ -51,11 +51,41 @@ async function handleScan(){
   scanMsg.textContent='正在解码条码...';
 
   try{
-    // Use html5-qrcode scanFile to decode
-    const scanner=new Html5Qrcode('scanImg');
-    const result=await scanner.scanFile(file,false);
-    tracking=(result||'').replace(/[^a-zA-Z0-9]/g,'').trim();
+    // Convert to JPEG (iPhone shoots HEIC, which ZXing can't read)
+    // Also resize to max 2000px for faster decoding
+    const img=new Image();
+    img.src=URL.createObjectURL(rawFile);
+    await new Promise((r,rej)=>{img.onload=r;img.onerror=rej;});
+    const MAX=2000;
+    let w=img.width,h=img.height;
+    if(w>MAX||h>MAX){const s=MAX/Math.max(w,h);w=Math.round(w*s);h=Math.round(h*s);}
+    const canvas=document.createElement('canvas');
+    canvas.width=w;canvas.height=h;
+    canvas.getContext('2d').drawImage(img,0,0,w,h);
+    const jpegBlob=await new Promise(r=>canvas.toBlob(r,'image/jpeg',0.9));
+    const file=new File([jpegBlob],'barcode.jpg',{type:'image/jpeg'});
+    URL.revokeObjectURL(img.src);
 
+    let result=null;
+
+    // Method 1: Native BarcodeDetector (fast, reliable)
+    if('BarcodeDetector' in window){
+      try{
+        const detector=new BarcodeDetector({formats:['code_128','code_39','ean_13','ean_8','qr_code']});
+        const codes=await detector.detect(img);
+        if(codes.length>0){result=codes[0].rawValue;}
+      }catch(e){/* fall through */}
+    }
+
+    // Method 2: html5-qrcode scanFile (fallback)
+    if(!result){
+      try{
+        const scanner=new Html5Qrcode('scanImg');
+        result=await scanner.scanFile(file,false);
+      }catch(e2){throw new Error('两种方式都未能识别条码');}
+    }
+
+    tracking=(result||'').replace(/[^a-zA-Z0-9]/g,'').trim();
     if(!tracking||tracking.length<4)throw new Error('未识别到有效单号: '+(result||'空'));
 
     trackingDisplay.textContent=tracking;
@@ -72,8 +102,8 @@ async function handleScan(){
     trackingDisplay.textContent='识别失败';
     btnScan.textContent='📸 拍条码识别单号';
     btnScan.disabled=false;
-    scanMsg.textContent='❌ 识别失败，请重新拍摄条码（对准、光线充足）';
-    setTimeout(()=>scanMsg.classList.add('hid'),4000);
+    scanMsg.textContent='❌ '+(err.message||'识别失败，请重试');
+    setTimeout(()=>scanMsg.classList.add('hid'),5000);
   }
 }
 

@@ -1,0 +1,60 @@
+<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Testing...</title></head>
+<body style="font-family:monospace;padding:20px;background:#111;color:#fff">
+<h3>Barcode Decode Test</h3>
+<div id="out" style="line-height:2"></div>
+<img id="img" style="display:none">
+<script src="/js/vendor/html5-qrcode.min.js"></script>
+<script>
+const out=document.getElementById('out');
+const img=document.getElementById('img');
+
+async function testImage(url,label){
+  return new Promise(resolve=>{
+    img.onload=async()=>{
+      const c=document.createElement('canvas');
+      c.width=img.width;c.height=img.height;
+      c.getContext('2d').drawImage(img,0,0);
+      const blob=await new Promise(r=>c.toBlob(r,'image/png'));
+      const file=new File([blob],'b.png',{type:'image/png'});
+
+      // Try scanFile
+      try{
+        const scanner=new Html5Qrcode('out');
+        const r=await scanner.scanFile(file,false);
+        out.innerHTML+=`<br><b style="color:#4ade80">✅ ${label}: "${r}"</b>`;
+        document.title='✅ '+label;
+        resolve(r);
+        return;
+      }catch(e){
+        out.innerHTML+=`<br><span style="color:#f87171">scanFile ❌ ${label}: ${e.message}</span>`;
+      }
+
+      // Try native
+      if('BarcodeDetector' in window){
+        try{
+          const det=new BarcodeDetector({formats:['code_128','code_39','ean_13']});
+          const codes=await det.detect(img);
+          if(codes.length>0){
+            out.innerHTML+=`<br><b style="color:#4ade80">✅ Native ${label}: "${codes[0].rawValue}"</b>`;
+            document.title='✅ '+label;
+            resolve(codes[0].rawValue);
+            return;
+          }
+        }catch(e){}
+      }
+
+      document.title='❌ '+label;
+      resolve(null);
+    };
+    img.src=url+'?v='+Date.now();
+  });
+}
+
+(async()=>{
+  const r1=await testImage('/test-barcode.png','Code128');
+  const r2=await testImage('/test-code39.png','Code39');
+  out.innerHTML+='<br><br><b>FINAL:</b> '+(r1||r2?'SOME PASSED':'ALL FAILED');
+  document.title=(r1||r2)?'✅ TEST PASSED':'❌ TEST FAILED';
+})();
+</script>
+</body></html>
