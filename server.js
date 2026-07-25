@@ -233,11 +233,22 @@ startCleanup(db, config);
 
 // --- Start ---
 const PORT = config.port || 3456;
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
   const protocol = server instanceof https.Server ? 'https' : 'http';
   console.log(`\n📦 打包录像系统已启动`);
   console.log(`   管理后台: ${protocol}://localhost:${PORT}`);
   console.log(`   手机录像: ${protocol}://<本机IP>:${PORT}/camera`);
   console.log(`   USB导入: 将视频文件放入 usb-import/ 目录`);
-  console.log(`   协议: ${protocol.toUpperCase()} (手机摄像头要求HTTPS！)\n`);
+
+  // --- Localtunnel (for external access via mobile data, no signup needed) ---
+  try {
+    const localtunnel = require('localtunnel');
+    const tunnel = await localtunnel({ port: PORT, local_https: true, allow_invalid_cert: true });
+    console.log(`   🌐 公网地址: ${tunnel.url}/camera`);
+    console.log(`   (手机用流量也能访问！)\n`);
+    process.env.TUNNEL_URL = tunnel.url;
+    tunnel.on('close', () => console.log('[Tunnel] Disconnected'));
+  } catch (e) {
+    console.log(`   ⚠️ 公网隧道: ${e.message}. 仅局域网可用\n`);
+  }
 });
