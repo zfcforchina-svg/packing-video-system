@@ -4,17 +4,9 @@
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#000;color:#fff;font-family:-apple-system,sans-serif;height:100vh;overflow:hidden}
 #vid{width:100vw;height:100vh;object-fit:cover;position:fixed;top:0;left:0;z-index:1}
-/* Scan region guide */
-#guide{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2;pointer-events:none;
-  width:80vw;height:60px;border:2px solid rgba(37,99,235,0.7);border-radius:6px;
-  box-shadow:0 0 0 9999px rgba(0,0,0,0.45)}
-#guide::after{content:'将条码放入框内';position:absolute;bottom:-28px;left:0;right:0;
-  text-align:center;font-size:13px;color:rgba(255,255,255,0.7)}
-#ui{position:fixed;bottom:0;left:0;right:0;z-index:10;
-  background:linear-gradient(transparent,rgba(0,0,0,0.9) 25%);padding:24px 16px 30px;
-  display:flex;flex-direction:column;gap:8px}
-#status{font-size:12px;text-align:center;opacity:0.8}
-#tracking{font-size:30px;font-weight:700;text-align:center;min-height:44px}
+#ui{position:fixed;bottom:0;left:0;right:0;z-index:10;background:linear-gradient(transparent,rgba(0,0,0,0.9) 30%);padding:20px 16px 30px;display:flex;flex-direction:column;gap:10px}
+#status{font-size:13px;text-align:center}
+#tracking{font-size:28px;font-weight:700;text-align:center;min-height:42px}
 .btn{width:100%;padding:16px;border:none;border-radius:12px;font-size:18px;font-weight:700;cursor:pointer;text-align:center}
 .btn:active{opacity:0.8}.btn:disabled{opacity:0.3}
 .btn-rec{background:#dc2626;color:#fff}.btn-up{background:#2563eb;color:#fff}.btn-next{background:#059669;color:#fff}
@@ -22,10 +14,9 @@ body{background:#000;color:#fff;font-family:-apple-system,sans-serif;height:100v
 #recordInput{display:none}
 </style></head><body>
 <video id="vid" autoplay muted playsinline></video>
-<div id="guide"></div>
 <div id="ui">
   <div id="status" class="y">⏳ 启动中...</div>
-  <div id="tracking">将条码对准框内</div>
+  <div id="tracking">将条码对准摄像头</div>
   <button class="btn btn-rec hid" id="btnRec">⏺ 开始录像</button>
   <button class="btn btn-up hid" id="btnUp">☁️ 上传到电脑</button>
   <button class="btn btn-next hid" id="btnNext">✅ 下一单</button>
@@ -34,91 +25,48 @@ body{background:#000;color:#fff;font-family:-apple-system,sans-serif;height:100v
 <script src="/socket.io/socket.io.js"></script>
 <script>
 const $=s=>document.querySelector(s);
-const vid=$('#vid'),statusEl=$('#status'),trackingEl=$('#tracking'),guide=$('#guide');
+const vid=$('#vid'),statusEl=$('#status'),trackingEl=$('#tracking');
 const btnRec=$('#btnRec'),btnUp=$('#btnUp'),btnNext=$('#btnNext');
 const recordInput=$('#recordInput');
 
 let stream=null,running=false,busy=false,count=0;
 let tracking='',videoBlob=null,socket=null,connected=false;
-let focusApplied=false;
 
 // ---- Init ----
 async function init(){
   socket=io({reconnection:true});
-  socket.on('connect',()=>{connected=true;});
-  socket.on('disconnect',()=>{connected=false;});
+  socket.on('connect',()=>connected=true);
+  socket.on('disconnect',()=>connected=false);
 
-  await openCamera();
-  await applyAutoFocus();
+  // Camera
+  try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{exact:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false});}
+  catch(e){stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1280}},audio:false});}
   vid.srcObject=stream;await vid.play();
-  statusEl.textContent='🔍 自动对焦扫描中...';statusEl.className='y';
-  guide.style.display='block';
+  statusEl.textContent='🔍 自动扫描中...';statusEl.className='y';
   running=true;scanLoop();
 
-  // Re-apply focus periodically (some cameras drift)
-  setInterval(applyAutoFocus,5000);
-
+  // Buttons
   btnRec.onclick=()=>recordInput.click();
   btnUp.onclick=doUpload;
   btnNext.onclick=resetAll;
   recordInput.onchange=handleRecord;
 }
 
-// ---- Open camera with high-res ----
-async function openCamera(){
-  const constraints=[
-    {video:{facingMode:{exact:'environment'},width:{ideal:1920},height:{ideal:1080},audio:false}},
-    {video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720},audio:false}},
-    {video:{width:{ideal:1280},audio:false}},
-  ];
-  for(const c of constraints){
-    try{stream=await navigator.mediaDevices.getUserMedia(c);return;}catch(e){}
-  }
-}
-
-// ---- Apply auto-focus ----
-async function applyAutoFocus(){
-  if(!stream||focusApplied)return;
-  const track=stream.getVideoTracks()[0];
-  if(!track)return;
-  try{
-    const caps=track.getCapabilities();
-    const adv=[];
-    // Continuous auto-focus
-    if(caps.focusMode&&caps.focusMode.includes('continuous')){
-      adv.push({focusMode:'continuous'});
-    }
-    // Push focus to close range (better for barcode)
-    if(caps.focusDistance&&caps.focusDistance.min<0.1){
-      adv.push({focusDistance:caps.focusDistance.min});
-    }
-    // 2x zoom for better barcode detail
-    if(caps.zoom&&caps.zoom.max>=2){
-      adv.push({zoom:Math.min(2,caps.zoom.max)});
-    }
-    if(adv.length>0){
-      await track.applyConstraints({advanced:adv});
-      focusApplied=true;
-      console.log('Auto-focus applied:',adv);
-    }
-  }catch(e){console.log('Focus not available:',e.message);}
-}
-
-// ---- Auto-scan loop ----
+// ---- Auto-scan loop (proven working!) ----
 async function scanLoop(){
   if(!running)return;
-  setTimeout(scanLoop,350);
+  setTimeout(scanLoop,400);
   if(busy||vid.readyState<2||!vid.videoWidth)return;
   busy=true;count++;
   try{
     const c=document.createElement('canvas');
     c.width=vid.videoWidth;c.height=vid.videoHeight;
     c.getContext('2d').drawImage(vid,0,0,c.width,c.height);
-    const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',0.9));
+    const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',0.85));
     const fd=new FormData();fd.append('image',blob);
     const resp=await fetch('/api/decode',{method:'POST',body:fd});
     const data=await resp.json();
-    statusEl.textContent='🔍 #'+count;
+    statusEl.textContent='🔍 #'+count+(data.success?' ✅':'');
 
     if(data.success&&data.tracking){
       const clean=data.tracking.replace(/[^a-zA-Z0-9]/g,'').trim();
@@ -126,13 +74,11 @@ async function scanLoop(){
         tracking=clean;
         trackingEl.textContent='📦 '+tracking;
         trackingEl.className='g';
-        statusEl.textContent='✅ 识别成功 — 点下方录像';
+        statusEl.textContent='✅ 识别成功，点下方按钮录像';
         statusEl.className='g';
-        guide.style.display='none';
-        btnRec.classList.remove('hid');btnRec.disabled=false;
+        btnRec.classList.remove('hid');
+        btnRec.disabled=false;
         if(navigator.vibrate)navigator.vibrate(200);
-        // Pause scanning — already found
-        running=false;
       }
     }
   }catch(e){}
@@ -151,7 +97,10 @@ function handleRecord(){
 async function doUpload(){
   if(!videoBlob||!tracking)return;
   btnUp.disabled=true;btnUp.textContent='上传中...';
-  if(!connected){statusEl.textContent='⚠️ 未连接，已存手机';saveToPhone();showNext();return;}
+  statusEl.textContent='☁️ 上传中...';statusEl.className='y';
+
+  if(!connected){statusEl.textContent='⚠️ 未连接，视频已存手机';saveToPhone();showNext();return;}
+
   const fid=tracking+'_'+Date.now();const sz=videoBlob.size,cs=256*1024,total=Math.ceil(sz/cs);
   try{
     await ws('upload:start',{fileId:fid,trackingNumber:tracking,totalSize:sz,duration:0});
@@ -165,10 +114,12 @@ async function doUpload(){
   }catch(e){statusEl.textContent='⚠️ 上传失败，已存手机';saveToPhone();}
   showNext();
 }
+
 function ws(ev,d){return new Promise((resolve,reject)=>{
   const t=setTimeout(()=>reject(new Error('超时')),120000);
   socket.emit(ev,d,r=>{clearTimeout(t);r?.error?reject(new Error(r.error)):resolve(r||{});});
 });}
+
 function saveToPhone(){
   if(!videoBlob)return;
   const url=URL.createObjectURL(videoBlob);
@@ -176,17 +127,18 @@ function saveToPhone(){
   document.body.appendChild(a);a.click();document.body.removeChild(a);
   setTimeout(()=>URL.revokeObjectURL(url),10000);
 }
+
 function showNext(){btnUp.classList.add('hid');btnNext.classList.remove('hid');}
 
 // ---- Next package ----
 function resetAll(){
   tracking='';videoBlob=null;count=0;
-  trackingEl.textContent='将条码对准框内';trackingEl.className='';
+  trackingEl.textContent='将条码对准摄像头';trackingEl.className='';
   btnRec.classList.add('hid');btnUp.classList.add('hid');btnNext.classList.add('hid');
   statusEl.textContent='🔍 重新扫描中...';statusEl.className='y';
-  guide.style.display='block';
   running=true;scanLoop();
 }
+
 init();
 </script>
 </body></html>
