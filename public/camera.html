@@ -1,79 +1,144 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#000">
+<!DOCTYPE html><html lang="zh"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
 <title>打包录像</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-html,body{height:100%;background:#0a0a0a;color:#fff;
-  font-family:-apple-system,BlinkMacSystemFont,sans-serif;-webkit-tap-highlight-color:transparent}
-#app{max-width:500px;margin:0 auto;height:100%;display:flex;flex-direction:column;padding:12px;gap:10px}
-h2{text-align:center;padding:8px 0 0;font-size:20px}
-#conn{text-align:center;font-size:11px;min-height:18px}
-.conn-ok{color:#4ade80}.conn-err{color:#f87171}
-
-/* Big tracking input */
-.input-group{background:#1a1a1a;border-radius:12px;padding:14px}
-.input-group label{font-size:12px;color:#64748b;display:block;margin-bottom:6px}
-#trackingInput{width:100%;padding:14px;font-size:22px;font-weight:700;text-align:center;
-  background:#0a0a0a;color:#fff;border:2px solid #333;border-radius:10px;
-  letter-spacing:2px;outline:none}
-#trackingInput:focus{border-color:#2563eb}
-#trackingInput::placeholder{color:#333;font-weight:400;font-size:16px}
-
-/* Photo preview */
-#scanPreview{width:100%;max-height:180px;object-fit:contain;border-radius:10px;display:none;background:#000}
-
-/* Scan button row */
-.btn-row{display:flex;gap:8px}
-.btn{flex:1;padding:16px;border:none;border-radius:12px;font-size:17px;font-weight:700;cursor:pointer;text-align:center}
-.btn:active{opacity:0.8}
-.btn-blue{background:#2563eb;color:#fff}
-.btn-red{background:#dc2626;color:#fff}
-.btn-green{background:#059669;color:#fff}
-.btn-purple{background:#7c3aed;color:#fff}
-.btn-gray{background:#333;color:#aaa}
-.btn:disabled{opacity:0.25}
-.hid{display:none!important}
-
+body{background:#000;color:#fff;font-family:-apple-system,sans-serif;height:100vh;overflow:hidden}
+#vid{width:100vw;height:100vh;object-fit:cover;position:fixed;top:0;left:0;z-index:1}
+#ui{position:fixed;bottom:0;left:0;right:0;z-index:10;background:linear-gradient(transparent,rgba(0,0,0,0.9) 30%);padding:20px 16px 30px;display:flex;flex-direction:column;gap:10px}
+#status{font-size:13px;text-align:center}
+#tracking{font-size:28px;font-weight:700;text-align:center;min-height:42px}
+.btn{width:100%;padding:16px;border:none;border-radius:12px;font-size:18px;font-weight:700;cursor:pointer;text-align:center}
+.btn:active{opacity:0.8}.btn:disabled{opacity:0.3}
+.btn-rec{background:#dc2626;color:#fff}.btn-up{background:#2563eb;color:#fff}.btn-next{background:#059669;color:#fff}
+.g{color:#4ade80}.y{color:#fbbf24}.hid{display:none!important}
 #recordInput{display:none}
-#scanHelper{display:none}
-#camView{width:100%;height:200px;background:#000;border-radius:10px;overflow:hidden;position:relative}
-#camView video{width:100%;height:100%;object-fit:cover}
-#camHint{position:absolute;bottom:8px;left:0;right:0;text-align:center;font-size:13px;color:#fff;text-shadow:0 0 4px #000}
-</style>
-</head>
-<body>
-
-<div id="app">
-  <h2>📦 打包录像</h2>
-  <div id="conn" class="conn-err">加载中...</div>
-
-  <!-- Tracking input -->
-  <div class="input-group">
-    <label>快递单号（拍照自动填 或 手动输入）</label>
-    <input type="text" id="trackingInput" placeholder="扫描或输入快递单号" inputmode="numeric" autocomplete="off">
-  </div>
-
-  <!-- Camera preview -->
-  <div id="camView"><div id="camHint">将条码对准摄像头</div></div>
-
-  <!-- Buttons -->
-  <button class="btn btn-blue hid" id="btnScan">📸 重新扫码</button>
-  <button class="btn btn-red hid" id="btnRecord">⏺ 开始录像</button>
-  <button class="btn btn-green hid" id="btnUpload">☁️ 上传到电脑</button>
-  <button class="btn btn-purple hid" id="btnNext">✅ 下一单</button>
-  <div style="flex:1"></div>
+</style></head><body>
+<video id="vid" autoplay muted playsinline></video>
+<div id="ui">
+  <div id="status" class="y">⏳ 启动中...</div>
+  <div id="tracking">将条码对准摄像头</div>
+  <button class="btn btn-rec hid" id="btnRec">⏺ 开始录像</button>
+  <button class="btn btn-up hid" id="btnUp">☁️ 上传到电脑</button>
+  <button class="btn btn-next hid" id="btnNext">✅ 下一单</button>
 </div>
-
 <input type="file" id="recordInput" accept="video/*" capture="environment">
-<div id="scanHelper"></div>
-
 <script src="/socket.io/socket.io.js"></script>
-<script src="/js/vendor/html5-qrcode.min.js"></script>
-<script src="/js/camera.js"></script>
-</body>
-</html>
+<script>
+const $=s=>document.querySelector(s);
+const vid=$('#vid'),statusEl=$('#status'),trackingEl=$('#tracking');
+const btnRec=$('#btnRec'),btnUp=$('#btnUp'),btnNext=$('#btnNext');
+const recordInput=$('#recordInput');
+
+let stream=null,running=false,busy=false,count=0;
+let tracking='',videoBlob=null,socket=null,connected=false;
+
+// ---- Init ----
+async function init(){
+  socket=io({reconnection:true});
+  socket.on('connect',()=>connected=true);
+  socket.on('disconnect',()=>connected=false);
+
+  // Camera
+  try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{exact:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false});}
+  catch(e){stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1280}},audio:false});}
+  vid.srcObject=stream;await vid.play();
+  statusEl.textContent='🔍 自动扫描中...';statusEl.className='y';
+  running=true;scanLoop();
+
+  // Buttons
+  btnRec.onclick=()=>recordInput.click();
+  btnUp.onclick=doUpload;
+  btnNext.onclick=resetAll;
+  recordInput.onchange=handleRecord;
+}
+
+// ---- Auto-scan loop (proven working!) ----
+async function scanLoop(){
+  if(!running)return;
+  setTimeout(scanLoop,400);
+  if(busy||vid.readyState<2||!vid.videoWidth)return;
+  busy=true;count++;
+  try{
+    const c=document.createElement('canvas');
+    c.width=vid.videoWidth;c.height=vid.videoHeight;
+    c.getContext('2d').drawImage(vid,0,0,c.width,c.height);
+    const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',0.85));
+    const fd=new FormData();fd.append('image',blob);
+    const resp=await fetch('/api/decode',{method:'POST',body:fd});
+    const data=await resp.json();
+    statusEl.textContent='🔍 #'+count+(data.success?' ✅':'');
+
+    if(data.success&&data.tracking){
+      const clean=data.tracking.replace(/[^a-zA-Z0-9]/g,'').trim();
+      if(clean.length>=4&&clean!==tracking){
+        tracking=clean;
+        trackingEl.textContent='📦 '+tracking;
+        trackingEl.className='g';
+        statusEl.textContent='✅ 识别成功，点下方按钮录像';
+        statusEl.className='g';
+        btnRec.classList.remove('hid');
+        btnRec.disabled=false;
+        if(navigator.vibrate)navigator.vibrate(200);
+      }
+    }
+  }catch(e){}
+  busy=false;
+}
+
+// ---- Record ----
+function handleRecord(){
+  const f=recordInput.files[0];if(!f)return;recordInput.value='';
+  videoBlob=f;
+  btnRec.classList.add('hid');btnUp.classList.remove('hid');
+  statusEl.textContent='✅ 录像完成 ('+(f.size/1048576).toFixed(1)+'MB)';statusEl.className='g';
+}
+
+// ---- Upload ----
+async function doUpload(){
+  if(!videoBlob||!tracking)return;
+  btnUp.disabled=true;btnUp.textContent='上传中...';
+  statusEl.textContent='☁️ 上传中...';statusEl.className='y';
+
+  if(!connected){statusEl.textContent='⚠️ 未连接，视频已存手机';saveToPhone();showNext();return;}
+
+  const fid=tracking+'_'+Date.now();const sz=videoBlob.size,cs=256*1024,total=Math.ceil(sz/cs);
+  try{
+    await ws('upload:start',{fileId:fid,trackingNumber:tracking,totalSize:sz,duration:0});
+    for(let i=0;i<total;i++){
+      const b=videoBlob.slice(i*cs,Math.min((i+1)*cs,sz));
+      await ws('upload:chunk',{fileId:fid,index:i,data:await b.arrayBuffer()});
+      btnUp.textContent='☁️ '+Math.round((i+1)/total*100)+'%';
+    }
+    await ws('upload:complete',{fileId:fid});
+    statusEl.textContent='✅ 上传完成 — '+tracking;statusEl.className='g';
+  }catch(e){statusEl.textContent='⚠️ 上传失败，已存手机';saveToPhone();}
+  showNext();
+}
+
+function ws(ev,d){return new Promise((resolve,reject)=>{
+  const t=setTimeout(()=>reject(new Error('超时')),120000);
+  socket.emit(ev,d,r=>{clearTimeout(t);r?.error?reject(new Error(r.error)):resolve(r||{});});
+});}
+
+function saveToPhone(){
+  if(!videoBlob)return;
+  const url=URL.createObjectURL(videoBlob);
+  const a=document.createElement('a');a.href=url;a.download=tracking+'.mp4';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),10000);
+}
+
+function showNext(){btnUp.classList.add('hid');btnNext.classList.remove('hid');}
+
+// ---- Next package ----
+function resetAll(){
+  tracking='';videoBlob=null;count=0;
+  trackingEl.textContent='将条码对准摄像头';trackingEl.className='';
+  btnRec.classList.add('hid');btnUp.classList.add('hid');btnNext.classList.add('hid');
+  statusEl.textContent='🔍 重新扫描中...';statusEl.className='y';
+  running=true;scanLoop();
+}
+
+init();
+</script>
+</body></html>

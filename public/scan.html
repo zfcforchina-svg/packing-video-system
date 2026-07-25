@@ -1,0 +1,84 @@
+<!DOCTYPE html><html lang="zh"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+<title>扫码测试</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;color:#fff;font-family:-apple-system,sans-serif;height:100vh;overflow:hidden}
+#vid{width:100vw;height:100vh;object-fit:cover;position:fixed;top:0;left:0;z-index:1}
+#ui{position:fixed;bottom:0;left:0;right:0;z-index:10;background:rgba(0,0,0,0.8);padding:16px}
+#status{font-size:14px;margin-bottom:8px}
+#result{font-size:24px;font-weight:700;min-height:36px}
+.g{color:#4ade80}.r{color:#f87171}.y{color:#fbbf24}
+</style></head><body>
+<video id="vid" autoplay muted playsinline></video>
+<div id="ui">
+  <div id="status" class="y">⏳ 启动中...</div>
+  <div id="result"></div>
+</div>
+<script>
+const vid=document.getElementById('vid');
+const statusEl=document.getElementById('status');
+const resultEl=document.getElementById('result');
+let stream=null,running=false,count=0,busy=false;
+
+async function init(){
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:{exact:'environment'},width:{ideal:1280},height:{ideal:720}},
+      audio:false
+    });
+  }catch(e){
+    stream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:'environment',width:{ideal:1280}},audio:false
+    });
+  }
+  vid.srcObject=stream;await vid.play();
+  statusEl.textContent='✅ 摄像头已启动，正在自动扫描...';
+  statusEl.className='g';
+  running=true;
+  scanLoop();
+}
+
+async function scanLoop(){
+  if(!running)return;
+  setTimeout(scanLoop,500);
+  if(busy)return;
+  if(vid.readyState<2||!vid.videoWidth)return;
+  busy=true;count++;
+
+  try{
+    const c=document.createElement('canvas');
+    c.width=vid.videoWidth;c.height=vid.videoHeight;
+    c.getContext('2d').drawImage(vid,0,0,c.width,c.height);
+    const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',0.85));
+    const fd=new FormData();fd.append('image',blob);
+    const resp=await fetch('/api/decode',{method:'POST',body:fd});
+    const data=await resp.json();
+
+    statusEl.textContent='📤 #'+count+' '+vid.videoWidth+'x'+vid.videoHeight;
+
+    if(data.success&&data.tracking){
+      const clean=data.tracking.replace(/[^a-zA-Z0-9]/g,'').trim();
+      if(clean.length>=4){
+        running=false;
+        resultEl.textContent='✅ 识别成功: '+clean;
+        resultEl.className='g';
+        statusEl.textContent='扫描完成！单号: '+clean;
+        statusEl.className='g';
+        stream.getTracks().forEach(t=>t.stop());
+      }
+    }else{
+      statusEl.textContent='📤 #'+count+' 未识别';
+    }
+  }catch(e){
+    statusEl.textContent='❌ #'+count+' 网络错误: '+e.message;
+    statusEl.className='r';
+  }
+  busy=false;
+}
+
+init().catch(e=>{
+  statusEl.textContent='❌ 摄像头失败: '+e.message;
+  statusEl.className='r';
+});
+</script>
+</body></html>
