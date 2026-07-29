@@ -1,17 +1,19 @@
 <view class="app">
-  <view class="header">📦 打包录像</view>
+  <view class="header">打包录像</view>
   <view class="status {{connected?'ok':'err'}}">{{statusText}}</view>
 
-  <!-- Tracking -->
   <view class="card">
-    <view class="label">快递单号</view>
-    <input class="tracking" value="{{tracking}}" placeholder="扫码自动填入" bindinput="onTrackingInput"/>
+    <view class="label">快递单号（最长20位）</view>
+    <input class="tracking" value="{{tracking}}" placeholder="扫码自动填入 或 手动输入" bindinput="onInput" maxlength="20"/>
   </view>
 
-  <!-- Actions -->
+  <view class="card" wx:if="{{videoReady}}">
+    <view class="label">已录视频</view>
+    <view class="val">{{fileName}}</view>
+  </view>
+
   <button class="btn btn-blue" bindtap="doScan" disabled="{{scanning}}">{{scanBtn}}</button>
-  <button class="btn btn-red" bindtap="doRecord" disabled="{{!tracking}}" wx:if="{{!videoReady}}">⏺ 开始录像</button>
-  <button class="btn btn-green" bindtap="doUpload" disabled="{{!videoReady||uploading}}" wx:if="{{videoReady}}">☁️ 上传到电脑</button>
-  <button class="btn btn-purple" bindtap="doNext" wx:if="{{done}}">✅ 下一单</button>
-  <view class="info" wx:if="{{videoPath}}">已录: {{videoPath}}</view>
+  <button class="btn btn-red" bindtap="doRecord" disabled="{{!tracking}}">开始录像</button>
+  <button class="btn btn-green" bindtap="doUpload" disabled="{{!videoReady||uploading}}">上传到电脑</button>
+  <button class="btn btn-purple" bindtap="doNext" wx:if="{{done}}">下一单</button>
 </view>
