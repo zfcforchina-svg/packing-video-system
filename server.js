@@ -179,6 +179,10 @@ app.use('/api', uploadRoutes(io, db, config));
 
 // --- Start ---
 const PORT = process.env.PORT || config.port || 3456;
+
+// HTTP server for mini program (no cert issues)
+const httpServer = require('http').createServer(app);
+httpServer.listen(3457, () => console.log('[HTTP] Port 3457 for mini program'));
 server.listen(PORT, async () => {
   await db.init();
   startWatcher(db, config);
