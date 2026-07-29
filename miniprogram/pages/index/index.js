@@ -49,7 +49,7 @@ Page({
   doRecord() {
     wx.chooseVideo({
       camera: 'back',
-      maxDuration: 120,
+      maxDuration: 60,
       sourceType: ['camera'],
       success: (res) => {
         this.setData({

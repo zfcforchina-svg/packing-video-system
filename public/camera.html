@@ -23,7 +23,8 @@ body{background:#000;color:#fff;font-family:-apple-system,sans-serif;height:100v
 <div id="ui">
   <div id="status" class="y">⏳ 启动中...</div>
   <div id="tracking">将条码对准框内</div>
-  <input type="text" id="manual" placeholder="或手动输入单号" inputmode="numeric" autocomplete="off">
+  <input type="text" id="manual" placeholder="手动输入单号（最长20位）" inputmode="numeric" maxlength="20" autocomplete="off">
+  <button class="btn btn-up" id="btnManualRec" style="flex:none">⏺ 手动开始录制</button>
   <div class="btn-row hid" id="btnRow">
     <button class="btn btn-stop" id="btnStop">⏹ 手动停止</button>
     <button class="btn btn-up" id="btnUp">☁️ 上传</button>
@@ -33,7 +34,7 @@ body{background:#000;color:#fff;font-family:-apple-system,sans-serif;height:100v
 <script src="/socket.io/socket.io.js"></script>
 <script>
 const $=s=>document.querySelector(s);
-const vid=$('#vid'),statusEl=$('#status'),trackingEl=$('#tracking'),manual=$('#manual');
+const vid=$('#vid'),statusEl=$('#status'),trackingEl=$('#tracking'),manual=$('#manual'),btnManualRec=$('#btnManualRec');
 const btnRow=$('#btnRow'),btnStop=$('#btnStop'),btnUp=$('#btnUp'),btnNext=$('#btnNext');
 const recBadge=$('#recBadge'),recTimer=$('#recTimer');
 let stream=null,running=false,busy=false,count=0;
@@ -53,7 +54,7 @@ async function init(){
     if(caps.zoom&&caps.zoom.max>=2)adv.push({zoom:2});
     if(adv.length)t.applyConstraints({advanced:adv});}catch(e){}
   statusEl.textContent='🔍 自动扫描中...';statusEl.className='y';running=true;scanLoop();setInterval(()=>{try{stream.getVideoTracks()[0].applyConstraints({advanced:[{focusMode:'continuous'}]});}catch(e){}},5000);
-  manual.oninput=()=>{const v=manual.value.replace(/[^a-zA-Z0-9]/g,'').trim();if(v.length>=4&&!isRecording){tracking=v;trackingEl.textContent='📦 '+tracking;trackingEl.className='g';startRec();}};
+  btnManualRec.onclick=()=>{const v=manual.value.replace(/[^a-zA-Z0-9]/g,'').trim();if(v.length>=4&&!isRecording){tracking=v;trackingEl.textContent='📦 '+tracking;trackingEl.className='g';running=false;startRec();}};
   btnStop.onclick=stopRec;btnUp.onclick=doUpload;btnNext.onclick=resetAll;
 }
 
@@ -106,7 +107,7 @@ function showNext(){btnUp.classList.add('hid');btnNext.classList.remove('hid');}
 
 function resetAll(){
   tracking='';videoBlob=null;recorder=null;recChunks=[];count=0;isRecording=false;
-  trackingEl.textContent='将条码对准框内';trackingEl.className='';manual.value='';
+  trackingEl.textContent='将条码对准框内';trackingEl.className='';manual.value='';btnManualRec.classList.remove('hid');
   btnRow.classList.add('hid');btnNext.classList.add('hid');btnUp.disabled=false;btnUp.textContent='☁️ 上传';
   recBadge.style.display='none';statusEl.textContent='🔍 重新扫描...';statusEl.className='y';running=true;scanLoop();
 }
