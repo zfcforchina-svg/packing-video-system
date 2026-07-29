@@ -66,6 +66,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // --- Routes ---
+app.get('/', (_req, res) => res.json({ ok: true, time: new Date().toISOString() }));
 app.get('/camera', (_req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'camera.html'));
 });
