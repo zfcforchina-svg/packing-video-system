@@ -106,6 +106,17 @@ module.exports = function (db, config, saveConfig) {
     res.json(files);
   });
 
+  // --- Download video as MP4 ---
+  router.get('/download', (req, res) => {
+    const file = req.query.file, name = req.query.name || 'video.mp4';
+    if (!file) return res.status(400).send('Missing file');
+    const fullPath = path.join(__dirname, '..', 'uploads', file);
+    if (!fs.existsSync(fullPath)) return res.status(404).send('Not found');
+    res.setHeader('Content-Disposition', `attachment; filename="${name}"`);
+    res.setHeader('Content-Type', 'video/mp4');
+    fs.createReadStream(fullPath).pipe(res);
+  });
+
   // --- Barcode decode (server-side ZBar) ---
   const multer = require('multer');
   const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });

@@ -1,70 +1,65 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>打包录像管理系统</title>
-<link rel="stylesheet" href="/css/style.css">
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>打包录像</title>
 <style>
-.toolbar{display:flex;gap:8px;margin-bottom:12px;align-items:center}
-.toolbar .btn{padding:8px 16px;font-size:13px}
-</style>
-</head>
-<body class="dashboard-page">
-<div class="dashboard">
-  <header class="dash-header">
-    <div class="dash-title"><h1>打包录像管理</h1><span class="dash-subtitle" id="connectionBadge">🟢 服务运行中</span></div>
-    <div class="dash-actions"><button class="btn btn-sm" id="settingsToggle">设置</button></div>
-  </header>
-
-  <div class="search-bar">
-    <input type="text" id="searchInput" class="search-input" placeholder="搜索快递单号...">
-    <input type="date" id="dateFrom" class="date-input" title="开始日期">
-    <input type="date" id="dateTo" class="date-input" title="结束日期">
-    <button id="searchBtn" class="btn btn-primary btn-sm">搜索</button>
-    <button id="clearSearchBtn" class="btn btn-outline btn-sm">清除</button>
-    <span class="search-result" id="searchResult"></span>
-  </div>
-
-  <div class="stats-bar" id="statsBar">
-    <div class="stat-item"><span class="stat-value" id="statTotal">--</span><span class="stat-label">总视频数</span></div>
-    <div class="stat-item"><span class="stat-value" id="statSize">--</span><span class="stat-label">总存储</span></div>
-    <div class="stat-item"><span class="stat-value" id="statToday">--</span><span class="stat-label">今日新增</span></div>
-    <div class="stat-item"><span class="stat-value" id="statFree">--</span><span class="stat-label">磁盘剩余</span></div>
-  </div>
-
-  <div class="toolbar">
-    <input type="checkbox" id="selectAll" title="全选">
-    <button class="btn btn-primary btn-sm" id="batchDownloadBtn">批量下载</button>
-    <button class="btn btn-danger btn-sm" id="batchDeleteBtn">批量删除</button>
-  </div>
-
-  <div class="video-list" id="videoList">
-    <div class="empty-state" id="emptyState"><div class="empty-icon">📹</div><p>暂无录像</p><p class="empty-hint">用手机打开 <code>/camera</code> 页面开始录制</p></div>
-  </div>
-
-  <div class="pagination hidden" id="pagination">
-    <button id="prevPageBtn" class="btn btn-outline btn-sm">上一页</button>
-    <span id="pageInfo">第 1 页</span>
-    <button id="nextPageBtn" class="btn btn-outline btn-sm">下一页</button>
-  </div>
-
-  <div class="modal-overlay hidden" id="playerModal">
-    <div class="modal-content">
-      <div class="modal-header"><h3 id="playerTitle">视频播放</h3><button class="modal-close" id="closePlayer">✕</button></div>
-      <video id="playerVideo" class="player-video" controls playsinline></video>
-      <div class="modal-info" id="playerInfo"></div>
-      <div class="modal-actions">
-        <a class="btn btn-primary btn-sm" id="downloadVideoBtn" download style="text-decoration:none">下载MP4</a>
-        <button class="btn btn-outline btn-sm" id="copyTrackingBtn">复制单号</button>
-        <button class="btn btn-danger btn-sm" id="deleteVideoBtn">删除</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="toast hidden" id="toast"></div>
-</div>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',sans-serif;background:#f5f5f7;color:#1d1d1f;-webkit-font-smoothing:antialiased;min-height:100vh}
+nav{position:sticky;top:0;z-index:100;background:rgba(245,245,247,0.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid rgba(0,0,0,0.08);padding:0 24px}
+.nav-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;height:52px}
+.nav-title{font-size:20px;font-weight:600;letter-spacing:-0.02em}
+.nav-status{font-size:13px;color:#86868b}
+main{max-width:1200px;margin:0 auto;padding:32px 24px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:36px}
+.stat{background:#fff;border-radius:16px;padding:20px 24px;box-shadow:0 1px 3px rgba(0,0,0,0.04)}
+.stat-val{font-size:32px;font-weight:600;letter-spacing:-0.02em;line-height:1.1}
+.stat-label{font-size:13px;color:#86868b;margin-top:4px}
+.search-bar{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
+.search-bar input{flex:1;min-width:200px;padding:10px 14px;border:1px solid #d2d2d7;border-radius:10px;font-size:15px;font-family:inherit;outline:none;background:#fff}
+.search-bar input:focus{border-color:#0071e3;box-shadow:0 0 0 3px rgba(0,113,227,0.1)}
+.search-bar input[type=date]{flex:0 0 auto;min-width:140px}
+.btn{padding:10px 20px;border:none;border-radius:10px;font-size:14px;font-weight:500;cursor:pointer;font-family:inherit;transition:all 0.15s;white-space:nowrap}
+.btn-primary{background:#0071e3;color:#fff}.btn-primary:hover{background:#0077ed}
+.btn-ghost{background:#f5f5f7;color:#1d1d1f}.btn-ghost:hover{background:#e8e8ed}
+.btn-danger{background:#ff3b30;color:#fff}.btn-danger:hover{background:#e0352b}
+.btn-sm{padding:8px 16px;font-size:13px}
+.toolbar{display:flex;gap:10px;align-items:center;margin-bottom:14px}
+.toolbar label{font-size:14px;color:#86868b;display:flex;align-items:center;gap:6px;cursor:pointer}
+.result-count{font-size:13px;color:#86868b}
+.video-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-bottom:28px}
+.video-card{background:#fff;border-radius:16px;overflow:hidden;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,0.04);transition:all 0.2s}
+.video-card:hover{box-shadow:0 8px 30px rgba(0,0,0,0.08);transform:translateY(-2px)}
+.video-thumb{height:140px;background:linear-gradient(135deg,#1d1d1f 0%,#3a3a3c 100%);display:flex;align-items:center;justify-content:center;position:relative}
+.video-thumb .play{width:48px;height:48px;background:rgba(255,255,255,0.95);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;color:#0071e3}
+.video-thumb .check{position:absolute;top:10px;left:10px;z-index:5;width:20px;height:20px;cursor:pointer}
+.video-info{padding:14px 16px}
+.video-tracking{font-size:16px;font-weight:600;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.video-meta{font-size:12px;color:#86868b;display:flex;justify-content:space-between}
+.video-tag{display:inline-block;font-size:11px;font-weight:500;padding:2px 8px;border-radius:20px;background:#f5f5f7;color:#86868b;margin-top:6px}
+.empty{text-align:center;padding:80px 20px;color:#86868b}.empty-icon{font-size:56px;margin-bottom:16px;opacity:0.6}
+.empty p{font-size:17px;margin-bottom:4px}.empty code{background:#e8e8ed;padding:2px 8px;border-radius:4px;font-size:14px}
+.pagination{display:flex;align-items:center;justify-content:center;gap:12px;padding:8px 0 40px}
+.pagination span{font-size:14px;color:#86868b}
+.hidden{display:none!important}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:1000;display:flex;align-items:center;justify-content:center;padding:24px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.modal{background:#fff;border-radius:20px;width:100%;max-width:720px;max-height:90vh;overflow-y:auto;box-shadow:0 25px 60px rgba(0,0,0,0.15)}
+.modal-header{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid #f5f5f7}
+.modal-header h3{font-size:17px;font-weight:600}
+.modal-close{width:32px;height:32px;border:none;background:#f5f5f7;border-radius:50%;cursor:pointer;font-size:16px;color:#86868b;display:flex;align-items:center;justify-content:center}
+.modal video{width:100%;max-height:460px;background:#000;display:block}
+.modal-info{padding:12px 22px;font-size:13px;color:#86868b}
+.modal-actions{padding:0 22px 18px;display:flex;gap:10px}
+.toast{position:fixed;bottom:32px;left:50%;transform:translateX(-50%);z-index:2000;background:#1d1d1f;color:#fff;padding:10px 22px;border-radius:24px;font-size:14px;box-shadow:0 8px 30px rgba(0,0,0,0.2)}
+@media(max-width:640px){.stats{grid-template-columns:repeat(2,1fr)}.video-grid{grid-template-columns:1fr}.search-bar{flex-direction:column}}
+</style></head><body>
+<nav><div class="nav-inner"><div class="nav-title">打包录像</div><div class="nav-status" id="connBadge">连接中...</div></div></nav>
+<main>
+  <div class="stats"><div class="stat"><div class="stat-val" id="statTotal">--</div><div class="stat-label">总视频数</div></div><div class="stat"><div class="stat-val" id="statSize">--</div><div class="stat-label">总存储</div></div><div class="stat"><div class="stat-val" id="statToday">--</div><div class="stat-label">今日新增</div></div><div class="stat"><div class="stat-val" id="statFree">--</div><div class="stat-label">磁盘剩余</div></div></div>
+  <div class="search-bar"><input type="text" id="searchInput" placeholder="搜索快递单号"><input type="date" id="dateFrom"><input type="date" id="dateTo"><button class="btn btn-primary" id="searchBtn">搜索</button><button class="btn btn-ghost" id="clearBtn">清除</button><span class="result-count" id="resultCount"></span></div>
+  <div class="toolbar"><label><input type="checkbox" id="selectAll"> 全选</label><button class="btn btn-primary btn-sm" id="batchDownloadBtn">批量下载</button><button class="btn btn-danger btn-sm" id="batchDeleteBtn">批量删除</button></div>
+  <div class="video-grid" id="videoGrid"></div>
+  <div class="empty" id="emptyState"><div class="empty-icon">📹</div><p>暂无视频</p><p style="font-size:14px">手机打开 <code>/camera</code> 开始录像</p></div>
+  <div class="pagination hidden" id="pagination"><button class="btn btn-ghost btn-sm" id="prevBtn">上一页</button><span id="pageInfo"></span><button class="btn btn-ghost btn-sm" id="nextBtn">下一页</button></div>
+</main>
+<div class="modal-overlay hidden" id="playerModal"><div class="modal"><div class="modal-header"><h3 id="playerTitle">视频播放</h3><button class="modal-close" id="closePlayer">✕</button></div><video id="playerVideo" controls playsinline></video><div class="modal-info" id="playerInfo"></div><div class="modal-actions"><a class="btn btn-primary btn-sm" id="downloadBtn" download style="text-decoration:none">下载 MP4</a><button class="btn btn-ghost btn-sm" id="copyBtn">复制单号</button><button class="btn btn-danger btn-sm" id="deleteBtn">删除</button></div></div></div>
+<div class="toast hidden" id="toast"></div>
 <script src="/socket.io/socket.io.js"></script>
 <script src="/js/dashboard.js"></script>
-</body>
-</html>
+</body></html>
