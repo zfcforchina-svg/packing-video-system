@@ -177,7 +177,7 @@ io.on('connection', (socket) => {
 app.use('/api', uploadRoutes(io, db, config));
 
 // --- Start ---
-const PORT = config.port || 3456;
+const PORT = process.env.PORT || config.port || 3456;
 server.listen(PORT, async () => {
   await db.init();
   startWatcher(db, config);

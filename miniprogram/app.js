@@ -1,5 +1,5 @@
 App({
   globalData: {
-    serverUrl: 'https://legal-ways-tease.loca.lt'
+    serverUrl: 'https://win-production-f414.up.railway.app'
   }
 });
