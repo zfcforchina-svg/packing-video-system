@@ -1,5 +1,5 @@
 App({
   globalData: {
-    serverUrl: 'https://192.168.0.119:3456'
+    serverUrl: 'https://legal-ways-tease.loca.lt'
   }
 });
