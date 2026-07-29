@@ -31,75 +31,18 @@ function generateCert() {
   if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
     return { key: fs.readFileSync(keyPath), cert: fs.readFileSync(certPath) };
   }
-  console.log('[HTTPS] Generating self-signed certificate...');
+  console.log('[HTTPS] Generating certificate...');
   fs.mkdirSync(certDir, { recursive: true });
-
-  const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
-    modulusLength: 2048,
-    publicKeyEncoding: { type: 'spki', format: 'pem' },
-    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
-  });
-
-  const cert = crypto.createSign('sha256')
-    .update('packing-video-system')
-    .sign(privateKey, 'base64');
-
-  // Create a self-signed cert using the X509 cert builder
-  const { execSync } = require('child_process');
   try {
-    // Use openssl if available
-    execSync(`openssl req -x509 -newkey rsa:2048 -keyout "${keyPath}" -out "${certPath}" -days 3650 -nodes -subj "/CN=packing-video-local" 2>/dev/null`);
-    console.log('[HTTPS] Certificate generated (openssl)');
+    const { execSync } = require('child_process');
+    execSync(`openssl req -x509 -newkey rsa:2048 -keyout "${keyPath}" -out "${certPath}" -days 3650 -nodes -subj "/CN=packing-video" 2>nul 2>/dev/null`);
   } catch (e) {
-    // Fallback: write the simple key/cert
-    fs.writeFileSync(keyPath, privateKey);
-    // Create a minimal self-signed cert using node-forge... too complex.
-    // Just use openssl or warn user.
-    console.log('[HTTPS] openssl not found, trying built-in cert generation...');
-    // Write PEM files manually using the key pair
-    fs.writeFileSync(keyPath, privateKey);
-    // Generate a simple self-signed cert using Node's crypto
-    const certPem = generateSelfSignedCert(privateKey);
-    fs.writeFileSync(certPath, certPem);
+    const selfsigned = require('selfsigned');
+    const pems = selfsigned.generate([{ name: 'commonName', value: 'packing-video' }], { days: 3650, keySize: 2048 });
+    fs.writeFileSync(keyPath, pems.private);
+    fs.writeFileSync(certPath, pems.cert);
   }
-
   return { key: fs.readFileSync(keyPath), cert: fs.readFileSync(certPath) };
-}
-
-function generateSelfSignedCert(privateKeyPem) {
-  // Minimal X509 v3 cert generation using Node.js crypto
-  const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
-    modulusLength: 2048,
-    publicKeyEncoding: { type: 'spki', format: 'der' },
-    privateKeyEncoding: { type: 'pkcs8', format: 'der' },
-  });
-
-  // Write proper key
-  const finalKey = crypto.createPrivateKey(privateKey).export({ type: 'pkcs8', format: 'pem' });
-  fs.writeFileSync(keyPath, finalKey);
-
-  // Create a self-signed cert
-  const cert = crypto.X509Certificate
-    ? (() => {
-        // Node 17+ has X509Certificate
-        const kp = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
-        const rawCert = crypto.createSign('SHA256').update('packing').sign(kp.privateKey);
-        // Can't easily create self-signed X509 in pure Node without openssl
-        return null;
-      })()
-    : null;
-
-  // Fallback message
-  return `-----BEGIN CERTIFICATE-----
-MIIDazCCAlMCFAjxRgAQBMBhBaSzhQynfQ5v+28QMA0GCSqGSIb3DQEBCwUAMHgx
-CzAJBgNVBAYTAlVTMRMwEQYDVQQIDApDYWxpZm9ybmlhMRIwEAYDVQQHDAlTYW4g
-RGllZ28xEjAQBgNVBAoMCUxvY2FsIENBMRQwEgYDVQQLDAtMb2NhbCBTZXJ2ZXIx
-FjAUBgNVBAMMDWxvY2FsaG9zdC1jYTAeFw0yNTA3MjUwMDAwMDBaFw0zNTA3MjMw
-MDAwMDBaMHgxCzAJBgNVBAYTAlVTMRMwEQYDVQQIDApDYWxpZm9ybmlhMRIwEAYD
-VQQHDAlTYW4gRGllZ28xEjAQBgNVBAoMCUxvY2FsIENBMRQwEgYDVQQLDAtMb2Nh
-bCBTZXJ2ZXIxFjAUBgNVBAMMDWxvY2FsaG9zdC1jYTCCASIwDQYJKoZIhvcNAQEB
-BQADggEPADCCAQoCggEBAK0IhQJxLjA3NKCQQIaiBLD7fSYaFJqQIFQxMEi5M4ax
------END CERTIFICATE-----`;
 }
 
 // --- Init ---
