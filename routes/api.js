@@ -116,15 +116,15 @@ module.exports = function (db, config, saveConfig) {
     try {
       // Dynamic import zbar-wasm (ESM module)
       const zbar = await import('@undecaf/zbar-wasm');
-      const sharp = (await import('sharp')).default;
-
-      // Convert to grayscale raw buffer
-      const { data, info } = await sharp(req.file.buffer)
-        .greyscale()
-        .raw()
-        .toBuffer({ resolveWithObject: true });
-
-      const symbols = await zbar.scanGrayBuffer(data, info.width, info.height);
+      const { Jimp } = (await import('jimp'));
+      const img = await Jimp.read(req.file.buffer);
+      img.greyscale();
+      const w = img.bitmap.width, h = img.bitmap.height;
+      const gray = new Uint8Array(w * h);
+      for (let y = 0; y < h; y++)
+        for (let x = 0; x < w; x++)
+          gray[y * w + x] = img.bitmap.data[(y * w + x) * 4];
+      const symbols = await zbar.scanGrayBuffer(gray, w, h);
 
       if (symbols && symbols.length > 0) {
         const results = symbols.map(s => ({

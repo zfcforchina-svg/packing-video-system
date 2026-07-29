@@ -104,7 +104,6 @@ BQADggEPADCCAQoCggEBAK0IhQJxLjA3NKCQQIaiBLD7fSYaFJqQIFQxMEi5M4ax
 
 // --- Init ---
 const config = loadConfig();
-db.init();
 oss.init(config);
 
 const app = express();
@@ -234,13 +233,12 @@ io.on('connection', (socket) => {
 // Also update upload routes to use io
 app.use('/api', uploadRoutes(io, db, config));
 
-// --- Start Services ---
-startWatcher(db, config);
-startCleanup(db, config);
-
 // --- Start ---
 const PORT = config.port || 3456;
 server.listen(PORT, async () => {
+  await db.init();
+  startWatcher(db, config);
+  startCleanup(db, config);
   const protocol = server instanceof https.Server ? 'https' : 'http';
   console.log(`\n📦 打包录像系统已启动`);
   console.log(`   管理后台: ${protocol}://localhost:${PORT}`);
