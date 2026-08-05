@@ -1,0 +1,17 @@
+{
+  "name": "order-admin",
+  "version": "1.0.0",
+  "description": "订单系统后台管理 - 用户审核与权限管理",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "init-admin": "node init-admin.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "sql.js": "^1.10.0",
+    "jsonwebtoken": "^9.0.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5"
+  }
+}

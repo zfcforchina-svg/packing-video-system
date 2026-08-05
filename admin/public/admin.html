@@ -1,0 +1,134 @@
+<!DOCTYPE html><html lang="zh"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>后台管理 - 订单系统</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,sans-serif;background:#f5f5f7;min-height:100vh}
+nav{background:rgba(245,245,247,0.85);backdrop-filter:blur(20px);border-bottom:1px solid rgba(0,0,0,0.08);padding:0 24px;position:sticky;top:0;z-index:100}
+.nav-inner{max-width:1000px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;height:52px}
+.nav-title{font-size:17px;font-weight:600;color:#1d1d1f}
+.nav-actions{display:flex;gap:10px;align-items:center}
+.nav-user{font-size:13px;color:#86868b}
+main{max-width:1000px;margin:0 auto;padding:24px}
+.section{background:#fff;border-radius:16px;padding:24px;margin-bottom:20px;box-shadow:0 1px 3px rgba(0,0,0,0.04)}
+.section h2{font-size:18px;margin-bottom:16px;display:flex;align-items:center;gap:10px}
+.badge{display:inline-flex;align-items:center;justify-content:center;background:#ff3b30;color:#fff;font-size:11px;font-weight:600;min-width:20px;height:20px;border-radius:10px;padding:0 6px}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-size:12px;color:#86868b;font-weight:500;padding:8px 12px;border-bottom:1px solid #f5f5f7}
+td{padding:12px;font-size:14px;border-bottom:1px solid #f5f5f7}
+td .tag{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:500}
+.tag-pending{background:#fef3c7;color:#d97706}
+.tag-active{background:#d1fae5;color:#059669}
+.tag-rejected{background:#fee2e2;color:#dc2626}
+.tag-disabled{background:#e5e7eb;color:#6b7280}
+.tag-superadmin{background:#dbeafe;color:#2563eb}
+.tag-admin{background:#ede9fe;color:#7c3aed}
+.btn-sm{padding:6px 14px;border:none;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;margin-right:4px}
+.btn-approve{background:#059669;color:#fff}.btn-approve:hover{background:#047857}
+.btn-reject{background:#dc2626;color:#fff}.btn-reject:hover{background:#b91c1c}
+.btn-disable{background:#6b7280;color:#fff}
+.btn-blue{background:#0071e3;color:#fff}
+input,select{padding:8px 12px;border:1px solid #d2d2d7;border-radius:8px;font-size:14px;font-family:inherit;outline:none}
+input:focus{border-color:#0071e3}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;z-index:1000;display:none}
+.modal-content{background:#fff;border-radius:16px;padding:28px;width:90%;max-width:400px}
+.modal h3{font-size:18px;margin-bottom:16px}
+textarea{width:100%;padding:10px;border:1px solid #d2d2d7;border-radius:8px;font-size:14px;font-family:inherit;min-height:60px;resize:vertical}
+.flex{display:flex;gap:10px}
+.flex input{flex:1}
+</style></head><body>
+<nav><div class="nav-inner"><div class="nav-title">后台管理</div><div class="nav-actions"><span class="nav-user" id="navUser"></span><button class="btn-sm btn-disable" onclick="logout()">退出</button></div></div></nav>
+<main>
+  <div class="section">
+    <h2>👥 用户管理 <span class="badge" id="pendingBadge">0</span></h2>
+    <div class="flex" style="margin-bottom:16px">
+      <input type="text" id="searchInput" placeholder="搜索用户" oninput="loadUsers()">
+      <select id="statusFilter" onchange="loadUsers()">
+        <option value="">全部状态</option><option value="pending">待审核</option><option value="active">已通过</option><option value="rejected">已驳回</option><option value="disabled">已禁用</option>
+      </select>
+    </div>
+    <table><thead><tr><th>账号</th><th>昵称</th><th>邮箱</th><th>角色</th><th>状态</th><th>操作</th></tr></thead><tbody id="userTable"></tbody></table>
+  </div>
+
+  <div class="section" id="createAdminSection">
+    <h2>➕ 创建管理员</h2>
+    <div class="flex">
+      <input type="text" id="newUsername" placeholder="账号"><input type="password" id="newPassword" placeholder="密码"><input type="text" id="newNickname" placeholder="昵称"><button class="btn-sm btn-blue" onclick="createAdmin()">创建</button>
+    </div>
+    <div style="font-size:13px;color:#86868b;margin-top:8px" id="createMsg"></div>
+  </div>
+
+  <div class="section" id="settingsSection">
+    <h2>⚙️ 设置</h2>
+    <div class="flex"><input type="text" id="whitelist" placeholder="注册邮箱白名单后缀，逗号分隔，如 @company.com"><button class="btn-sm btn-blue" onclick="saveSettings()">保存</button></div>
+    <div style="font-size:13px;color:#86868b;margin-top:8px">留空则不限制注册邮箱</div>
+  </div>
+</main>
+
+<div class="modal" id="rejectModal"><div class="modal-content"><h3>驳回用户</h3><textarea id="rejectReason" placeholder="驳回理由（选填）"></textarea><div class="flex" style="margin-top:12px"><button class="btn-sm btn-reject" onclick="confirmReject()">确认驳回</button><button class="btn-sm btn-disable" onclick="document.getElementById('rejectModal').style.display='none'">取消</button></div></div></div>
+
+<script>
+const token=localStorage.getItem('token');
+const user=JSON.parse(localStorage.getItem('user')||'{}');
+if(!token||(user.role!=='superadmin'&&user.role!=='admin'))location.href='/';
+document.getElementById('navUser').textContent=user.nickname||user.username;
+if(user.role!=='superadmin'){document.getElementById('createAdminSection').style.display='none';document.getElementById('settingsSection').style.display='none';}
+
+async function api(url,opts={}){
+  const r=await fetch(url,{...opts,headers:{...opts.headers,'Content-Type':'application/json',Authorization:'Bearer '+token}});
+  if(r.status===401){localStorage.clear();location.href='/';return;}
+  return r.json();
+}
+
+let currentUsers=[];
+async function loadUsers(){
+  const status=document.getElementById('statusFilter').value;
+  const search=document.getElementById('searchInput').value;
+  const d=await api(`/api/admin/users?status=${status}&search=${search}`);
+  if(!d)return;
+  currentUsers=d.users;
+  document.getElementById('pendingBadge').textContent=d.pendingCount||0;
+  const statusMap={pending:'待审核',active:'已通过',rejected:'已驳回',disabled:'已禁用'};
+  const roleMap={superadmin:'超级管理员',admin:'管理员',user:'普通用户'};
+  document.getElementById('userTable').innerHTML=d.users.map(u=>`
+    <tr><td>${u.username}</td><td>${u.nickname||'-'}</td><td>${u.email||'-'}</td>
+    <td><span class="tag tag-${u.role}">${roleMap[u.role]}</span></td>
+    <td><span class="tag tag-${u.status}">${statusMap[u.status]||u.status}</span></td>
+    <td>${u.role==='superadmin'?'-':`
+      ${u.status==='pending'?`<button class="btn-sm btn-approve" onclick="approve(${u.id})">通过</button><button class="btn-sm btn-reject" onclick="openReject(${u.id})">驳回</button>`:''}
+      ${u.status==='active'?`<button class="btn-sm btn-disable" onclick="disableUser(${u.id})">禁用</button>`:''}
+      ${u.status==='rejected'?`<button class="btn-sm btn-approve" onclick="approve(${u.id})">重新通过</button>`:''}
+      ${u.status==='disabled'?`<button class="btn-sm btn-approve" onclick="approve(${u.id})">重新启用</button>`:''}
+    `}</td></tr>`).join('');
+}
+
+async function approve(id){await api(`/api/admin/users/${id}/approve`,{method:'POST'});loadUsers();}
+let rejectId=null;
+function openReject(id){rejectId=id;document.getElementById('rejectModal').style.display='flex';}
+async function confirmReject(){
+  const reason=document.getElementById('rejectReason').value;
+  await api(`/api/admin/users/${rejectId}/reject`,{method:'POST',body:JSON.stringify({reason})});
+  document.getElementById('rejectModal').style.display='none';document.getElementById('rejectReason').value='';loadUsers();
+}
+async function disableUser(id){if(confirm('确认禁用？')){await api(`/api/admin/users/${id}/disable`,{method:'POST'});loadUsers();}}
+async function createAdmin(){
+  const username=document.getElementById('newUsername').value.trim();
+  const password=document.getElementById('newPassword').value;
+  const nickname=document.getElementById('newNickname').value.trim();
+  if(!username||!password){document.getElementById('createMsg').textContent='账号密码不能为空';return;}
+  const d=await api('/api/admin/create',{method:'POST',body:JSON.stringify({username,password,nickname})});
+  document.getElementById('createMsg').textContent=d.message||d.error;
+  if(d.success){document.getElementById('newUsername').value='';document.getElementById('newPassword').value='';document.getElementById('newNickname').value='';loadUsers();}
+}
+async function saveSettings(){
+  const whitelist=document.getElementById('whitelist').value.trim();
+  await api('/api/admin/settings',{method:'PUT',body:JSON.stringify({emailWhitelist:whitelist})});
+  alert('已保存');
+}
+async function loadSettings(){
+  if(user.role!=='superadmin')return;
+  const d=await api('/api/admin/settings');
+  if(d)document.getElementById('whitelist').value=d.emailWhitelist||'';
+}
+function logout(){localStorage.clear();location.href='/';}
+loadUsers();loadSettings();
+</script>
+</body></html>

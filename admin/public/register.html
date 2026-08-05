@@ -1,0 +1,49 @@
+<!DOCTYPE html><html lang="zh"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>注册 - 订单系统</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,sans-serif;background:#f5f5f7;display:flex;align-items:center;justify-content:center;min-height:100vh}
+.card{background:#fff;border-radius:16px;padding:40px;width:100%;max-width:400px;box-shadow:0 1px 3px rgba(0,0,0,0.08)}
+h1{font-size:24px;text-align:center;margin-bottom:8px;color:#1d1d1f}
+.sub{text-align:center;color:#86868b;font-size:14px;margin-bottom:28px}
+input{width:100%;padding:12px 14px;border:1px solid #d2d2d7;border-radius:10px;font-size:15px;margin-bottom:12px;outline:none;font-family:inherit}
+input:focus{border-color:#0071e3;box-shadow:0 0 0 3px rgba(0,113,227,0.1)}
+.btn{width:100%;padding:12px;background:#0071e3;color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:600;cursor:pointer;margin-top:4px}
+.btn:hover{background:#0077ed}
+.err{color:#ff3b30;font-size:13px;text-align:center;min-height:20px;margin-top:8px}
+.link{text-align:center;margin-top:16px;font-size:14px;color:#0071e3;cursor:pointer}
+</style></head><body>
+<div class="card" id="formCard">
+  <h1>📋 注册账号</h1>
+  <div class="sub">填写信息提交审核</div>
+  <input type="text" id="username" placeholder="账号（至少3个字符）">
+  <input type="password" id="password" placeholder="密码">
+  <input type="text" id="nickname" placeholder="昵称（选填）">
+  <input type="email" id="email" placeholder="邮箱（选填）">
+  <button class="btn" onclick="register()">提交注册</button>
+  <div class="err" id="err"></div>
+  <div class="link" onclick="location.href='/'">已有账号？登录</div>
+</div>
+<div class="card" id="pendingCard" style="display:none;text-align:center">
+  <div style="font-size:48px;margin-bottom:16px">⏳</div>
+  <h1>审核中</h1>
+  <div class="sub" style="margin-top:12px">注册已提交，请等待管理员审核通过后登录。</div>
+  <div class="link" onclick="location.href='/'">返回登录</div>
+</div>
+<script>
+async function register(){
+  const username=document.getElementById('username').value.trim();
+  const password=document.getElementById('password').value;
+  const nickname=document.getElementById('nickname').value.trim();
+  const email=document.getElementById('email').value.trim();
+  const err=document.getElementById('err');
+  if(!username||!password){err.textContent='账号密码不能为空';return;}
+  if(username.length<3){err.textContent='账号至少3个字符';return;}
+  try{
+    const r=await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password,nickname,email})});
+    const d=await r.json();
+    if(d.success){document.getElementById('formCard').style.display='none';document.getElementById('pendingCard').style.display='block';}
+    else err.textContent=d.error;
+  }catch(e){err.textContent='网络错误';}
+}
+</script>
+</body></html>
